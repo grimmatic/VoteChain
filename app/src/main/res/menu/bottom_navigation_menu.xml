@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_elections"
+        android:icon="@drawable/ic_ballot"
+        android:title="Seçimler" />
+    <item
+        android:id="@+id/nav_vote"
+        android:icon="@drawable/ic_vote"
+        android:title="Oy Ver" />
+    <item
+        android:id="@+id/nav_results"
+        android:icon="@drawable/ic_chart"
+        android:title="Sonuçlar" />
+    <item
+        android:id="@+id/nav_profile"
+        android:icon="@drawable/ic_person"
+        android:title="Profil" />
+</menu>
