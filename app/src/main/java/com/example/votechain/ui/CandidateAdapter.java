@@ -38,25 +38,33 @@ public class CandidateAdapter extends RecyclerView.Adapter<CandidateAdapter.Cand
 
     @Override
     public void onBindViewHolder(@NonNull CandidateViewHolder holder, int position) {
-        Candidate candidate = candidateList.get(position);
+        // 'position' parametresini doğrudan kullanmak yerine final yapın
+        final int adapterPosition = holder.getAdapterPosition();
+        if (adapterPosition == RecyclerView.NO_POSITION) return;
+
+        Candidate candidate = candidateList.get(adapterPosition);
         holder.tvCandidateName.setText(candidate.getName());
         holder.tvParty.setText(candidate.getParty());
 
         // RadioButton durumunu ayarla
-        holder.radioButton.setChecked(selectedPosition == position);
+        holder.radioButton.setChecked(selectedPosition == adapterPosition);
 
         holder.itemView.setOnClickListener(v -> {
             // Önceki seçimi temizle ve yeni seçimi işaretle
-            selectedPosition = position;
-            notifyDataSetChanged();
-            listener.onCandidateClick(candidate);
+            selectedPosition = holder.getAdapterPosition();
+            if (selectedPosition != RecyclerView.NO_POSITION) {
+                notifyDataSetChanged();
+                listener.onCandidateClick(candidateList.get(selectedPosition));
+            }
         });
 
         holder.radioButton.setOnClickListener(v -> {
             // Önceki seçimi temizle ve yeni seçimi işaretle
-            selectedPosition = position;
-            notifyDataSetChanged();
-            listener.onCandidateClick(candidate);
+            selectedPosition = holder.getAdapterPosition();
+            if (selectedPosition != RecyclerView.NO_POSITION) {
+                notifyDataSetChanged();
+                listener.onCandidateClick(candidateList.get(selectedPosition));
+            }
         });
     }
 

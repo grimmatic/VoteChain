@@ -2,6 +2,7 @@ package com.example.votechain.ui;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -88,15 +89,41 @@ public class ProfileFragment extends Fragment {
         db.collection("users").document(userId)
                 .get()
                 .addOnSuccessListener(documentSnapshot -> {
-                    User user = documentSnapshot.toObject(User.class);
-                    if (user != null) {
-                        tvName.setText(user.getAd() + " " + user.getSoyad());
-                        tvTcNo.setText("TC: " + user.getTcKimlikNo());
+                    progressBar.setVisibility(View.GONE);
+
+                    if (documentSnapshot.exists()) {
+                        // User nesnesine çevirmeden önce doğrudan alanları oku
+                        String ad = documentSnapshot.getString("ad");
+                        String soyad = documentSnapshot.getString("soyad");
+                        String tcKimlikNo = documentSnapshot.getString("tcKimlikNo");
+
+                        if (ad != null && soyad != null) {
+                            tvName.setText(ad + " " + soyad);
+                        } else {
+                            tvName.setText("Ad Soyad bilgisi bulunamadı");
+                        }
+
+                        if (tcKimlikNo != null) {
+                            tvTcNo.setText("TC: " + tcKimlikNo);
+                        } else {
+                            tvTcNo.setText("TC Kimlik bilgisi bulunamadı");
+                        }
+
+                    } else {
+                        tvName.setText("Kullanıcı bilgisi bulunamadı");
+                        tvTcNo.setText("TC: Bilgi yok");
                     }
                 })
                 .addOnFailureListener(e -> {
-                    Toast.makeText(getContext(), "Kullanıcı bilgileri yüklenemedi: " + e.getMessage(),
-                            Toast.LENGTH_SHORT).show();
+                    progressBar.setVisibility(View.GONE);
+                    tvName.setText("Bilgiler yüklenemedi");
+                    tvTcNo.setText("TC: Bilgi yok");
+
+
+                    if (getContext() != null) {
+                        Toast.makeText(getContext(), "Kullanıcı bilgileri yüklenemedi: " + e.getMessage(),
+                                Toast.LENGTH_SHORT).show();
+                    }
                 });
     }
 

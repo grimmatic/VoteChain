@@ -3,6 +3,7 @@ package com.example.votechain.ui;
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -15,12 +16,15 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.example.votechain.R;
 import com.example.votechain.model.User;
 import com.example.votechain.service.TCKimlikDogrulama;
-import com.example.votechain.util.TCKimlikValidator;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
+import com.google.firebase.auth.ActionCodeSettings;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FirebaseFirestore;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class LoginActivity extends AppCompatActivity {
 
@@ -30,7 +34,6 @@ public class LoginActivity extends AppCompatActivity {
 
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
-    private TCKimlikValidator tcValidator;
     private TCKimlikDogrulama tcDogrulama;
 
     @Override
@@ -44,7 +47,6 @@ public class LoginActivity extends AppCompatActivity {
 
         // TC Kimlik doğrulama servisi ve validatörü
         tcDogrulama = new TCKimlikDogrulama();
-        tcValidator = new TCKimlikValidator();
 
         // UI bileşenlerini bağla
         etTCKimlikNo = findViewById(R.id.etTCKimlikNo);
@@ -88,11 +90,6 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
 
-        // TC Kimlik No formatını kontrol et
-        if (!tcValidator.isValid(tcKimlikNo)) {
-            etTCKimlikNo.setError("Geçersiz TC Kimlik No");
-            return;
-        }
 
         // Yükleniyor göster
         progressBar.setVisibility(View.VISIBLE);
@@ -133,11 +130,6 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
 
-        // TC Kimlik No formatını kontrol et
-        if (!tcValidator.isValid(tcKimlikNo)) {
-            etTCKimlikNo.setError("Geçersiz TC Kimlik No");
-            return;
-        }
 
         // Şifre uzunluğunu kontrol et
         if (password.length() < 6) {
@@ -177,43 +169,50 @@ public class LoginActivity extends AppCompatActivity {
             }
         });
     }
-
     private void createFirebaseUser(final String tcKimlikNo, final String ad, final String soyad,
                                     final int dogumYili, String password) {
         String email = tcKimlikNo + "@votechain.com";
 
         mAuth.createUserWithEmailAndPassword(email, password)
-                .addOnCompleteListener(new OnCompleteListener<AuthResult>() {
-                    @Override
-                    public void onComplete(@NonNull Task<AuthResult> task) {
-                        if (task.isSuccessful()) {
-                            // Kullanıcı başarıyla oluşturuldu, Firestore'a bilgileri kaydet
-                            String userId = mAuth.getCurrentUser().getUid();
-                            User user = new User(tcKimlikNo, ad, soyad, dogumYili);
-                            user.setUserId(userId);
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
 
-                            db.collection("users").document(userId)
-                                    .set(user)
-                                    .addOnCompleteListener(new OnCompleteListener<Void>() {
-                                        @Override
-                                        public void onComplete(@NonNull Task<Void> task) {
-                                            progressBar.setVisibility(View.GONE);
+                        String userId = mAuth.getCurrentUser().getUid();
 
-                                            if (task.isSuccessful()) {
-                                                Toast.makeText(LoginActivity.this, "Kayıt başarılı", Toast.LENGTH_SHORT).show();
-                                                startActivity(new Intent(LoginActivity.this, MainActivity.class));
-                                                finish();
-                                            } else {
-                                                Toast.makeText(LoginActivity.this, "Kullanıcı bilgileri kaydedilemedi: "
-                                                        + task.getException().getMessage(), Toast.LENGTH_SHORT).show();
-                                            }
-                                        }
-                                    });
-                        } else {
-                            progressBar.setVisibility(View.GONE);
-                            Toast.makeText(LoginActivity.this, "Kayıt başarısız: " + task.getException().getMessage(),
-                                    Toast.LENGTH_LONG).show();
-                        }
+
+
+                        User user = new User(tcKimlikNo, ad, soyad, dogumYili);
+                        user.setUserId(userId);
+                        user.setRole("user"); // Varsayılan rol
+
+                        Map<String, Object> userData = new HashMap<>();
+                        userData.put("tcKimlikNo", tcKimlikNo);
+                        userData.put("ad", ad);
+                        userData.put("soyad", soyad);
+                        userData.put("dogumYili", dogumYili);
+                        userData.put("userId", userId);
+                        userData.put("role", "user");
+
+                        // Hem Map hem de User objesi ile deneyelim
+                        db.collection("users").document(userId)
+                                .set(userData)
+                                .addOnSuccessListener(aVoid -> {
+
+                                    progressBar.setVisibility(View.GONE);
+                                    Toast.makeText(LoginActivity.this, "Kayıt başarılı", Toast.LENGTH_SHORT).show();
+                                    startActivity(new Intent(LoginActivity.this, MainActivity.class));
+                                    finish();
+                                })
+                                .addOnFailureListener(e -> {
+
+                                    progressBar.setVisibility(View.GONE);
+                                    Toast.makeText(LoginActivity.this, "Kullanıcı bilgileri kaydedilemedi: " + e.getMessage(),
+                                            Toast.LENGTH_SHORT).show();
+                                });
+                    } else {
+                        progressBar.setVisibility(View.GONE);
+                        Toast.makeText(LoginActivity.this, "Kayıt başarısız: " + task.getException().getMessage(),
+                                Toast.LENGTH_LONG).show();
                     }
                 });
     }

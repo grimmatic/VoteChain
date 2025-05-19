@@ -6,6 +6,7 @@ public class User {
     private String soyad;
     private int dogumYili;
     private String userId;
+    private String role;
 
     public User() {
 
@@ -16,6 +17,7 @@ public class User {
         this.ad = ad;
         this.soyad = soyad;
         this.dogumYili = dogumYili;
+        this.role = "user";
     }
 
 
@@ -49,6 +51,14 @@ public class User {
 
     public void setDogumYili(int dogumYili) {
         this.dogumYili = dogumYili;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
     }
 
     public String getUserId() {

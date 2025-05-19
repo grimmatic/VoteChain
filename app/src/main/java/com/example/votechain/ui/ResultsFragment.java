@@ -1,5 +1,6 @@
 package com.example.votechain.ui;
 
+import android.content.Context;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -100,6 +101,11 @@ public class ResultsFragment extends Fragment {
         db.collection("elections")
                 .get()
                 .addOnCompleteListener(task -> {
+                    // Context'in null olup olmadığını kontrol et
+                    if (getContext() == null || getActivity() == null || isDetached()) {
+                        return; // Fragment bağlı değilse veya yok olmuşsa işlemi sonlandır
+                    }
+
                     progressBar.setVisibility(View.GONE);
 
                     if (task.isSuccessful()) {
@@ -120,11 +126,15 @@ public class ResultsFragment extends Fragment {
                             electionNames.add(election.getName());
                         }
 
-                        // Spinner adapter
-                        ArrayAdapter<String> spinnerAdapter = new ArrayAdapter<>(
-                                getContext(), android.R.layout.simple_spinner_item, electionNames);
-                        spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-                        spinnerElections.setAdapter(spinnerAdapter);
+                        // Context'i güvenli bir şekilde kullan
+                        Context context = getContext();
+                        if (context != null) {
+                            // Spinner adapter
+                            ArrayAdapter<String> spinnerAdapter = new ArrayAdapter<>(
+                                    context, android.R.layout.simple_spinner_item, electionNames);
+                            spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                            spinnerElections.setAdapter(spinnerAdapter);
+                        }
 
                         if (electionList.isEmpty()) {
                             tvNoResults.setText("Hiç seçim bulunamadı");
@@ -132,8 +142,10 @@ public class ResultsFragment extends Fragment {
                             recyclerViewResults.setVisibility(View.GONE);
                         }
                     } else {
-                        Toast.makeText(getContext(), "Seçimler yüklenirken hata oluştu: " + task.getException().getMessage(),
-                                Toast.LENGTH_SHORT).show();
+                        if (getContext() != null) {
+                            Toast.makeText(getContext(), "Seçimler yüklenirken hata oluştu: " + task.getException().getMessage(),
+                                    Toast.LENGTH_SHORT).show();
+                        }
                     }
                 });
     }
