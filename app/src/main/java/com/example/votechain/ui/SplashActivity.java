@@ -45,7 +45,7 @@ public class SplashActivity extends AppCompatActivity {
             startActivity(new Intent(SplashActivity.this, MainActivity.class));
         } else {
             // Kullanıcı giriş yapmamış, giriş ekranına yönlendir
-            startActivity(new Intent(SplashActivity.this, LoginActivity.class));
+            startActivity(new Intent(SplashActivity.this, RegisterActivity.class));
         }
         finish();
     }

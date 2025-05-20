@@ -8,6 +8,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -30,6 +31,8 @@ public class LoginActivity extends AppCompatActivity {
 
     private EditText etTCKimlikNo, etAd, etSoyad, etDogumYili, etPassword;
     private Button btnLogin, btnRegister;
+
+    private TextView tvGoToRegister;
     private ProgressBar progressBar;
 
     private FirebaseAuth mAuth;
@@ -46,16 +49,13 @@ public class LoginActivity extends AppCompatActivity {
         db = FirebaseFirestore.getInstance();
 
         // TC Kimlik doğrulama servisi ve validatörü
-        tcDogrulama = new TCKimlikDogrulama();
+        //tcDogrulama = new TCKimlikDogrulama();
 
         // UI bileşenlerini bağla
         etTCKimlikNo = findViewById(R.id.etTCKimlikNo);
-        etAd = findViewById(R.id.etAd);
-        etSoyad = findViewById(R.id.etSoyad);
-        etDogumYili = findViewById(R.id.etDogumYili);
         etPassword = findViewById(R.id.etPassword);
         btnLogin = findViewById(R.id.btnLogin);
-        btnRegister = findViewById(R.id.btnRegister);
+        tvGoToRegister = findViewById(R.id.tvGoToRegister);
         progressBar = findViewById(R.id.progressBar);
 
         // Giriş butonuna tıklama
@@ -66,13 +66,9 @@ public class LoginActivity extends AppCompatActivity {
             }
         });
 
-        // Kayıt butonuna tıklama
-        btnRegister.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                registerUser();
-            }
-        });
+        setupGoToRegisterClick();
+
+
     }
 
     private void loginUser() {
@@ -116,104 +112,15 @@ public class LoginActivity extends AppCompatActivity {
                 });
     }
 
-    private void registerUser() {
-        final String tcKimlikNo = etTCKimlikNo.getText().toString().trim();
-        final String ad = etAd.getText().toString().trim();
-        final String soyad = etSoyad.getText().toString().trim();
-        final String dogumYiliStr = etDogumYili.getText().toString().trim();
-        final String password = etPassword.getText().toString().trim();
-
-        // Alanları kontrol et
-        if (TextUtils.isEmpty(tcKimlikNo) || TextUtils.isEmpty(ad) ||
-                TextUtils.isEmpty(soyad) || TextUtils.isEmpty(dogumYiliStr) || TextUtils.isEmpty(password)) {
-            Toast.makeText(this, "Tüm alanları doldurunuz", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-
-        // Şifre uzunluğunu kontrol et
-        if (password.length() < 6) {
-            etPassword.setError("Şifre en az 6 karakter olmalıdır");
-            return;
-        }
-
-        // Doğum yılını int'e çevir
-        final int dogumYili;
-        try {
-            dogumYili = Integer.parseInt(dogumYiliStr);
-        } catch (NumberFormatException e) {
-            etDogumYili.setError("Geçerli bir doğum yılı giriniz");
-            return;
-        }
-
-        // Yükleniyor göster
-        progressBar.setVisibility(View.VISIBLE);
-
-        // TC Kimlik doğrulama
-        tcDogrulama.dogrula(tcKimlikNo, ad, soyad, dogumYili, new TCKimlikDogrulama.TCKimlikDogrulamaListener() {
-            @Override
-            public void onTCKimlikDogrulamaResult(boolean isValid) {
-                if (isValid) {
-                    // TC Kimlik doğrulandı, Firebase'e kaydet
-                    createFirebaseUser(tcKimlikNo, ad, soyad, dogumYili, password);
-                } else {
-                    progressBar.setVisibility(View.GONE);
-                    Toast.makeText(LoginActivity.this, "TC Kimlik doğrulaması başarısız", Toast.LENGTH_LONG).show();
-                }
-            }
-
-            @Override
-            public void onTCKimlikDogrulamaError(String errorMessage) {
-                progressBar.setVisibility(View.GONE);
-                Toast.makeText(LoginActivity.this, "Doğrulama hatası: " + errorMessage, Toast.LENGTH_LONG).show();
-            }
+    private void setupGoToRegisterClick() {
+        tvGoToRegister.setOnClickListener(view -> {
+            Intent intent = new Intent(LoginActivity.this, RegisterActivity.class);
+            startActivity(intent);
+            finish();
         });
     }
-    private void createFirebaseUser(final String tcKimlikNo, final String ad, final String soyad,
-                                    final int dogumYili, String password) {
-        String email = tcKimlikNo + "@votechain.com";
-
-        mAuth.createUserWithEmailAndPassword(email, password)
-                .addOnCompleteListener(task -> {
-                    if (task.isSuccessful()) {
-
-                        String userId = mAuth.getCurrentUser().getUid();
 
 
 
-                        User user = new User(tcKimlikNo, ad, soyad, dogumYili);
-                        user.setUserId(userId);
-                        user.setRole("user"); // Varsayılan rol
 
-                        Map<String, Object> userData = new HashMap<>();
-                        userData.put("tcKimlikNo", tcKimlikNo);
-                        userData.put("ad", ad);
-                        userData.put("soyad", soyad);
-                        userData.put("dogumYili", dogumYili);
-                        userData.put("userId", userId);
-                        userData.put("role", "user");
-
-                        // Hem Map hem de User objesi ile deneyelim
-                        db.collection("users").document(userId)
-                                .set(userData)
-                                .addOnSuccessListener(aVoid -> {
-
-                                    progressBar.setVisibility(View.GONE);
-                                    Toast.makeText(LoginActivity.this, "Kayıt başarılı", Toast.LENGTH_SHORT).show();
-                                    startActivity(new Intent(LoginActivity.this, MainActivity.class));
-                                    finish();
-                                })
-                                .addOnFailureListener(e -> {
-
-                                    progressBar.setVisibility(View.GONE);
-                                    Toast.makeText(LoginActivity.this, "Kullanıcı bilgileri kaydedilemedi: " + e.getMessage(),
-                                            Toast.LENGTH_SHORT).show();
-                                });
-                    } else {
-                        progressBar.setVisibility(View.GONE);
-                        Toast.makeText(LoginActivity.this, "Kayıt başarısız: " + task.getException().getMessage(),
-                                Toast.LENGTH_LONG).show();
-                    }
-                });
-    }
 }
