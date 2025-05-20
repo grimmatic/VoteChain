@@ -79,6 +79,15 @@ public class RegisterActivity extends AppCompatActivity {
             return;
         }
 
+        // ✅ 18 yaş kontrolü
+        int currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR);
+        int age = currentYear - dogumYili;
+
+        if (age < 18) {
+            Toast.makeText(this, "Kayıt olmak için en az 18 yaşında olmalısınız", Toast.LENGTH_LONG).show();
+            return;
+        }
+
         // TC Kimlik doğrulama
         tcDogrulama.dogrula(tcKimlikNo, ad, soyad, dogumYili, new TCKimlikDogrulama.TCKimlikDogrulamaListener() {
             @Override
@@ -96,6 +105,7 @@ public class RegisterActivity extends AppCompatActivity {
             }
         });
     }
+
 
     private void createFirebaseUser(final String tcKimlikNo, final String ad, final String soyad,
                                     final int dogumYili, String password) {
