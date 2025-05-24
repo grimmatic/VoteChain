@@ -6,6 +6,7 @@ import android.util.Log;
 import com.example.votechain.model.Candidate;
 import com.example.votechain.model.Election;
 
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.web3j.crypto.Credentials;
 import org.web3j.crypto.Hash;
 import org.web3j.crypto.WalletUtils;
@@ -18,6 +19,7 @@ import org.web3j.tx.gas.DefaultGasProvider;
 
 import java.io.File;
 import java.math.BigInteger;
+import java.security.Security;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -30,8 +32,9 @@ import java.util.concurrent.CompletableFuture;
 public class BlockchainManager {
     private static final String TAG = "BlockchainManager";
 
-    // Ethereum ağı için Infura URL (buraya kendi API anahtarınızı ekleyin)
+
     private static final String INFURA_URL = "https://sepolia.infura.io/v3/0530f4db5185496891f0ca7c39b8092c";
+    private static final String PRIVATE_KEY = "1dfde3cdaf870377d55de8bf4bc62e7f589d492eb986fef2a9b98076b8d4db20";
 
     // Singleton instance
     private static BlockchainManager instance;
@@ -64,56 +67,22 @@ public class BlockchainManager {
      */
     public boolean initializeWallet(Context context, String password) {
         try {
-            Log.d(TAG, "Wallet initialization started...");
+            Log.d(TAG, "Using existing wallet with ETH...");
 
-            // Cüzdan dizinini oluştur
-            File walletDir = new File(context.getFilesDir(), "ethereum");
-            if (!walletDir.exists()) {
-                boolean created = walletDir.mkdirs();
-                Log.d(TAG, "Wallet directory created: " + created);
-            }
+            // Yeni cüzdan oluşturmak yerine, mevcut cüzdanınızı kullanın
+            credentials = Credentials.create(PRIVATE_KEY);
 
-            File[] walletFiles = walletDir.listFiles();
-            if (walletFiles != null && walletFiles.length > 0) {
-                // Mevcut cüzdanı yükle
-                Log.d(TAG, "Loading existing wallet...");
-                credentials = WalletUtils.loadCredentials(password, walletFiles[0].getAbsolutePath());
-                Log.d(TAG, "Existing wallet loaded successfully");
-            } else {
-                // Yeni cüzdan oluştur
-                Log.d(TAG, "Creating new wallet...");
-
-                // BouncyCastle provider kontrolü
-                if (java.security.Security.getProvider("BC") == null) {
-                    Log.e(TAG, "BouncyCastle provider not found!");
-                    return false;
-                }
-
-                String walletFileName = WalletUtils.generateLightNewWalletFile(password, walletDir);
-                credentials = WalletUtils.loadCredentials(password, new File(walletDir, walletFileName).getAbsolutePath());
-                Log.d(TAG, "New wallet created successfully");
-            }
-
-            Log.d(TAG, "Wallet initialized: " + credentials.getAddress());
+            Log.d(TAG, "Wallet loaded: " + credentials.getAddress());
 
             // Kontrat bağlantısını başlat
             initializeContract();
             return true;
 
         } catch (Exception e) {
-            Log.e(TAG, "Error initializing wallet: " + e.getMessage(), e);
-
-            // Detaylı hata bilgisi
-            if (e instanceof java.security.NoSuchAlgorithmException) {
-                Log.e(TAG, "Crypto algorithm not found. Check BouncyCastle provider.");
-            } else if (e instanceof java.security.NoSuchProviderException) {
-                Log.e(TAG, "Crypto provider not found. Check BouncyCastle installation.");
-            }
-
+            Log.e(TAG, "Error loading wallet: " + e.getMessage(), e);
             return false;
         }
     }
-
     /**
      * Akıllı kontrat bağlantısını başlatır
      */
@@ -182,16 +151,31 @@ public class BlockchainManager {
         CompletableFuture<String> future = new CompletableFuture<>();
 
         try {
-            // Unix timestamp'e dönüştür
-            BigInteger startTime = BigInteger.valueOf(election.getStartDate().getTime() / 1000);
-            BigInteger endTime = BigInteger.valueOf(election.getEndDate().getTime() / 1000);
+            // Unix timestamp'leri hesapla
+            long startTime = election.getStartDate().getTime() / 1000;
+            long endTime = election.getEndDate().getTime() / 1000;
+            long currentTime = System.currentTimeMillis() / 1000;
 
-            // Asenkron kontrat çağrısı
+            // DEBUG LOG
+            Log.d(TAG, "🕐 ZAMAN DEBUG:");
+            Log.d(TAG, "📅 Current timestamp: " + currentTime);
+            Log.d(TAG, "📅 Start timestamp: " + startTime);
+            Log.d(TAG, "📅 End timestamp: " + endTime);
+            Log.d(TAG, "📅 Start - Current = " + (startTime - currentTime) + " seconds");
+            Log.d(TAG, "📅 Current - Start = " + (currentTime - startTime) + " seconds");
+
+            if (startTime > currentTime) {
+                Log.w(TAG, "⚠️ UYARI: Seçim gelecekte başlıyor!");
+            } else {
+                Log.i(TAG, "✅ Seçim geçmişte başlamış, iyi!");
+            }
+
+            // isActive parametresini kaldırdım
             votingContract.createElection(
                             election.getName(),
                             election.getDescription(),
-                            startTime,
-                            endTime
+                            BigInteger.valueOf(startTime),
+                            BigInteger.valueOf(endTime)
                     ).sendAsync()
                     .thenAccept(receipt -> {
                         String txHash = receipt.getTransactionHash();
@@ -210,7 +194,6 @@ public class BlockchainManager {
 
         return future;
     }
-
     /**
      * Bir seçime aday ekler
      * @param electionId Seçim ID'si
@@ -295,7 +278,7 @@ public class BlockchainManager {
                         try {
                             List<Candidate> candidates = new ArrayList<>();
 
-                            // Sonuçları doğru şekilde parse et
+
                             @SuppressWarnings("unchecked")
                             List<BigInteger> ids = (List<BigInteger>) result.get(0).getValue();
                             @SuppressWarnings("unchecked")
@@ -364,7 +347,28 @@ public class BlockchainManager {
 
         return future;
     }
+    public CompletableFuture<String> setElectionActive(BigInteger electionId, boolean active) {
+        CompletableFuture<String> future = new CompletableFuture<>();
 
+        try {
+            votingContract.setElectionActive(electionId, active).sendAsync()
+                    .thenAccept(receipt -> {
+                        String txHash = receipt.getTransactionHash();
+                        Log.d(TAG, "Election status updated: " + txHash);
+                        future.complete(txHash);
+                    })
+                    .exceptionally(e -> {
+                        Log.e(TAG, "Error updating election status", e);
+                        future.completeExceptionally(e);
+                        return null;
+                    });
+        } catch (Exception e) {
+            Log.e(TAG, "Error updating election status", e);
+            future.completeExceptionally(e);
+        }
+
+        return future;
+    }
     /**
      * Mevcut cüzdan adresini döndürür
      * @return Ethereum cüzdan adresi

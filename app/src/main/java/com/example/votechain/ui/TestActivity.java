@@ -62,26 +62,22 @@ public class TestActivity extends AppCompatActivity {
      * Ethereum cüzdanı oluşturur ve blockchain işlemleri için hazır hale getirir
      */
     private void initializeWallet() {
-        updateStatus("🔐 Ethereum cüzdanı oluşturuluyor...\n" +
-                "Bu işlem blockchain işlemleri için gereklidir.\n" +
-                "Lütfen bekleyin...");
+        updateStatus("🔐 Mevcut cüzdanınız yükleniyor...\n" +
+                "ETH bakiyesi kontrol ediliyor...");
 
         boolean success = blockchainManager.initializeWallet(this, "test123");
 
         if (success) {
             String address = blockchainManager.getWalletAddress();
-            updateStatus("✅ Cüzdan başarıyla oluşturuldu!\n\n" +
+            updateStatus("✅ Cüzdan başarıyla yüklendi!\n\n" +
                     "📍 Ethereum Adresiniz:\n" +
-                    (address != null ? address : "null") + "\n\n" +
-                    "Artık blockchain işlemleri yapabilirsiniz!");
+                    address + "\n\n" +
+                    "Bu cüzdanınızda ETH olduğu için\n" +
+                    "blockchain işlemleri yapabilirsiniz!\n\n" +
+                    "Seçim oluşturmaya hazır!");
             btnCreateElection.setEnabled(true);
         } else {
-            updateStatus("❌ Cüzdan oluşturulamadı!\n\n" +
-                    "Olası nedenler:\n" +
-                    "- BouncyCastle kütüphanesi eksik\n" +
-                    "- Crypto provider hatası\n" +
-                    "- Depolama izin sorunu\n\n" +
-                    "Lütfen uygulamayı yeniden başlatın.");
+            updateStatus("❌ Cüzdan yüklenemedi!");
         }
     }
 
@@ -91,11 +87,9 @@ public class TestActivity extends AppCompatActivity {
     private void createTestElection() {
         updateStatus("Test seçimi oluşturuluyor...");
 
-        // Şimdi + 1 saat başlangıç
         Calendar startCal = Calendar.getInstance();
-        startCal.add(Calendar.HOUR, 1);
+        startCal.add(Calendar.HOUR, -1);
 
-        // Şimdi + 3 saat bitiş
         Calendar endCal = Calendar.getInstance();
         endCal.add(Calendar.HOUR, 3);
 

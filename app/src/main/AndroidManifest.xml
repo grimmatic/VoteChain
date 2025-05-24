@@ -63,6 +63,8 @@
             android:name=".ui.ManageElectionsActivity"
             android:exported="false"
             android:label="Seçimleri Yönet" />
+
+        <activity android:name=".ui.AdminActivity" />
     </application>
 
 </manifest>

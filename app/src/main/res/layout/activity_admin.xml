@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#f5f5f5"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Başlık -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="🏛️ ADMİN PANELİ"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textAlignment="center"
+            android:textColor="#333"
+            android:layout_marginBottom="20dp" />
+
+        <!-- Seçim Bilgileri -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="📋 SEÇİM BİLGİLERİ"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#6200ea"
+            android:layout_marginBottom="10dp" />
+
+        <EditText
+            android:id="@+id/etElectionName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Seçim Adı (örn: 2025 Başkanlık Seçimi)"
+            android:background="@drawable/edittext_background"
+            android:padding="12dp"
+            android:layout_marginBottom="8dp" />
+
+        <EditText
+            android:id="@+id/etElectionDescription"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Seçim Açıklaması"
+            android:background="@drawable/edittext_background"
+            android:padding="12dp"
+            android:minLines="2"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Tarih ve Saat -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="📅 BAŞLANGIÇ TARİHİ VE SAATİ"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="#333"
+            android:layout_marginBottom="8dp" />
+
+        <DatePicker
+            android:id="@+id/dpStartDate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:datePickerMode="spinner"
+            android:calendarViewShown="false"
+            android:layout_marginBottom="8dp" />
+
+        <TimePicker
+            android:id="@+id/tpStartTime"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:timePickerMode="spinner"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="🏁 BİTİŞ TARİHİ VE SAATİ"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="#333"
+            android:layout_marginBottom="8dp" />
+
+        <DatePicker
+            android:id="@+id/dpEndDate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:datePickerMode="spinner"
+            android:calendarViewShown="false"
+            android:layout_marginBottom="8dp" />
+
+        <TimePicker
+            android:id="@+id/tpEndTime"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:timePickerMode="spinner"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Seçim Oluştur Butonu -->
+        <Button
+            android:id="@+id/btnCreateElection"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:text="🗳️ SEÇİMİ OLUŞTUR"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:background="@drawable/button_primary"
+            android:textColor="@android:color/white"
+            android:layout_marginBottom="20dp"
+            android:enabled="false" />
+
+        <!-- Aday Ekleme -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="👤 ADAY EKLEME"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#6200ea"
+            android:layout_marginBottom="10dp" />
+
+        <EditText
+            android:id="@+id/etCandidateName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Aday Adı Soyadı"
+            android:background="@drawable/edittext_background"
+            android:padding="12dp"
+            android:layout_marginBottom="8dp" />
+
+        <EditText
+            android:id="@+id/etCandidateParty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Parti/Koalisyon (isteğe bağlı)"
+            android:background="@drawable/edittext_background"
+            android:padding="12dp"
+            android:layout_marginBottom="8dp" />
+
+        <Button
+            android:id="@+id/btnAddCandidate"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:text="➕ ADAY EKLE"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:background="@drawable/button_secondary"
+            android:textColor="@android:color/white"
+            android:layout_marginBottom="16dp"
+            android:enabled="false" />
+
+        <!-- Adaylar Listesi -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="📜 ADAYLAR LİSTESİ"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="#333"
+            android:layout_marginBottom="8dp" />
+
+        <ListView
+            android:id="@+id/lvCandidates"
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:background="@android:color/white"
+            android:padding="8dp"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Seçimi Başlat -->
+        <Button
+            android:id="@+id/btnStartElection"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:text="🚀 SEÇİMİ BAŞLAT"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:background="@drawable/button_success"
+            android:textColor="@android:color/white"
+            android:layout_marginBottom="16dp"
+            android:enabled="false" />
+
+        <!-- Durum -->
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Admin paneline hoş geldiniz"
+            android:textSize="14sp"
+            android:textColor="#666"
+            android:background="@android:color/white"
+            android:padding="12dp"
+            android:minLines="3" />
+
+    </LinearLayout>
+</ScrollView>
