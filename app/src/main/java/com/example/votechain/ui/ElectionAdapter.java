@@ -11,6 +11,8 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.votechain.R;
 import com.example.votechain.model.Election;
 import com.example.votechain.util.Utils;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.Date;
 import java.util.List;
@@ -67,26 +69,71 @@ public class ElectionAdapter extends RecyclerView.Adapter<ElectionAdapter.Electi
 
             // Seçim durumunu belirle
             Date now = new Date();
-            String status;
-            int statusColor;
+            String defaultStatus;
+            int defaultStatusColor;
 
             if (election.getStartDate() != null && election.getStartDate().after(now)) {
-                status = "🕒 Yakında Başlayacak";
-                statusColor = R.color.colorAccent;
-            } else if (election.getEndDate() != null && election.getEndDate().before(now)) {
-                status = "⏰ Süresi Dolmuş";
-                statusColor = R.color.red;
-            } else {
-                status = "🗳️ Oy Verilebilir";
-                statusColor = R.color.green;
-            }
+                defaultStatus = "🕒 Yakında Başlayacak";
+                defaultStatusColor = R.color.colorAccent;
 
-            tvElectionStatus.setText(status);
-            tvElectionStatus.setTextColor(itemView.getContext().getColor(statusColor));
+                tvElectionStatus.setText(defaultStatus);
+                tvElectionStatus.setTextColor(itemView.getContext().getColor(defaultStatusColor));
+            } else if (election.getEndDate() != null && election.getEndDate().before(now)) {
+                defaultStatus = "⏰ Süresi Dolmuş";
+                defaultStatusColor = R.color.red;
+
+                tvElectionStatus.setText(defaultStatus);
+                tvElectionStatus.setTextColor(itemView.getContext().getColor(defaultStatusColor));
+            } else {
+                // Kullanıcının oy verip vermediğini kontrol et
+                checkUserVoteStatus(election.getId(), result -> {
+                    tvElectionStatus.setText(result.text);
+                    tvElectionStatus.setTextColor(itemView.getContext().getColor(result.color));
+                });
+            }
 
             itemView.setOnClickListener(v -> {
                 listener.onElectionClick(election);
             });
+        }
+
+        private void checkUserVoteStatus(String electionId, VoteStatusCallback callback) {
+            String userId = FirebaseAuth.getInstance().getCurrentUser().getUid();
+
+            FirebaseFirestore.getInstance().collection("votes")
+                    .whereEqualTo("userId", userId)
+                    .whereEqualTo("electionId", electionId)
+                    .get()
+                    .addOnCompleteListener(task -> {
+                        VoteStatusResult result;
+                        if (task.isSuccessful() && !task.getResult().isEmpty()) {
+                            // Oy kullanılmış
+                            result = new VoteStatusResult("✅ Oy Kullandınız", R.color.blue);
+                        } else {
+                            // Oy kullanılmamış
+                            result = new VoteStatusResult("🗳️ Oy Verilebilir", R.color.green);
+                        }
+                        callback.onResult(result);
+                    })
+                    .addOnFailureListener(e -> {
+                        // Hata durumunda varsayılan
+                        VoteStatusResult result = new VoteStatusResult("🗳️ Oy Verilebilir", R.color.green);
+                        callback.onResult(result);
+                    });
+        }
+
+        interface VoteStatusCallback {
+            void onResult(VoteStatusResult result);
+        }
+
+        static class VoteStatusResult {
+            String text;
+            int color;
+
+            VoteStatusResult(String text, int color) {
+                this.text = text;
+                this.color = color;
+            }
         }
     }
 }

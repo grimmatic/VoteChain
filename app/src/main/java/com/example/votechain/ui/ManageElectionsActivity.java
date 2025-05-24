@@ -1,7 +1,10 @@
 package com.example.votechain.ui;
 
+import android.app.AlertDialog;
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -55,8 +58,7 @@ public class ManageElectionsActivity extends AppCompatActivity {
             @Override
             public void onElectionEdit(Election election) {
                 // Seçim düzenleme işlemi
-                Toast.makeText(ManageElectionsActivity.this,
-                        "Düzenleme: " + election.getName(), Toast.LENGTH_SHORT).show();
+                editElection(election);
             }
 
             @Override
@@ -110,11 +112,69 @@ public class ManageElectionsActivity extends AppCompatActivity {
                 });
     }
 
+    /**
+     * Seçim düzenleme dialog'u
+     */
+    private void editElection(Election election) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Seçim Düzenle: " + election.getName());
+
+        // Custom layout oluştur
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_edit_election, null);
+
+        EditText etName = dialogView.findViewById(R.id.etElectionName);
+        EditText etDescription = dialogView.findViewById(R.id.etElectionDescription);
+
+        // Mevcut değerleri doldur
+        etName.setText(election.getName());
+        etDescription.setText(election.getDescription());
+
+        builder.setView(dialogView);
+
+        builder.setPositiveButton("Güncelle", (dialog, which) -> {
+            String newName = etName.getText().toString().trim();
+            String newDescription = etDescription.getText().toString().trim();
+
+            if (newName.isEmpty()) {
+                Toast.makeText(this, "Seçim adı boş olamaz", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // Firebase'de güncelle
+            updateElectionInFirebase(election.getId(), newName, newDescription);
+        });
+
+        builder.setNegativeButton("İptal", null);
+        builder.show();
+    }
+
+    /**
+     * Firebase'de seçim bilgilerini günceller
+     */
+    private void updateElectionInFirebase(String electionId, String newName, String newDescription) {
+        progressBar.setVisibility(View.VISIBLE);
+
+        db.collection("elections").document(electionId)
+                .update(
+                        "name", newName,
+                        "description", newDescription
+                )
+                .addOnSuccessListener(aVoid -> {
+                    progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Seçim başarıyla güncellendi", Toast.LENGTH_SHORT).show();
+                    loadElections(); // Listeyi yenile
+                })
+                .addOnFailureListener(e -> {
+                    progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Güncelleme başarısız: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+    }
+
     private void deleteElection(Election election) {
-        new androidx.appcompat.app.AlertDialog.Builder(this)
+        new AlertDialog.Builder(this)
                 .setTitle("Seçimi Sil")
-                .setMessage("'" + election.getName() + "' seçimini silmek istediğinize emin misiniz?")
-                .setPositiveButton("Evet", (dialog, which) -> {
+                .setMessage("'" + election.getName() + "' seçimini silmek istediğinize emin misiniz?\n\nBu işlem geri alınamaz!")
+                .setPositiveButton("Evet, Sil", (dialog, which) -> {
                     progressBar.setVisibility(View.VISIBLE);
 
                     db.collection("elections").document(election.getId())
@@ -137,15 +197,16 @@ public class ManageElectionsActivity extends AppCompatActivity {
         progressBar.setVisibility(View.VISIBLE);
 
         boolean newStatus = !election.isActive();
+        String statusText = newStatus ? "aktif edildi" : "pasif edildi";
 
         db.collection("elections").document(election.getId())
                 .update("active", newStatus)
                 .addOnSuccessListener(aVoid -> {
                     progressBar.setVisibility(View.GONE);
                     Toast.makeText(this,
-                            "Seçim " + (newStatus ? "aktif edildi" : "pasif edildi"),
+                            "Seçim " + statusText,
                             Toast.LENGTH_SHORT).show();
-                    loadElections();
+                    loadElections(); // Listeyi yenile
                 })
                 .addOnFailureListener(e -> {
                     progressBar.setVisibility(View.GONE);

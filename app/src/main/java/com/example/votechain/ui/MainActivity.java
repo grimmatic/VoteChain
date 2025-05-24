@@ -78,7 +78,6 @@ public class MainActivity extends AppCompatActivity {
                         selectedFragment = new ElectionsFragment();
                         currentElectionsFragment = (ElectionsFragment) selectedFragment;
                     } else if (itemId == R.id.nav_vote) {
-                        // Oy Ver sekmesi kaldırıldı, Elections sekmesine yönlendir
                         bottomNavigationView.setSelectedItemId(R.id.nav_elections);
                         return true;
                     } else if (itemId == R.id.nav_results) {

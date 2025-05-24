@@ -64,7 +64,7 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginBottom="8dp">
+            android:layout_marginBottom="16dp">
 
             <Button
                 android:id="@+id/btnBackToElections"
@@ -86,17 +86,7 @@
 
         </LinearLayout>
 
-        <!-- Blockchain Durumu -->
-        <TextView
-            android:id="@+id/tvBlockchainStatus"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="🔐 Blockchain Durumu kontrol ediliyor..."
-            android:textSize="10sp"
-            android:padding="8dp"
-            android:background="@color/gray"
-            android:textColor="@color/white"
-            android:layout_marginBottom="8dp" />
+        <!-- Blockchain durumu kısmını kaldırdık -->
 
         <TextView
             android:layout_width="match_parent"

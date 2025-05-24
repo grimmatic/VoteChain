@@ -1,5 +1,6 @@
 package com.example.votechain.ui;
 
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -16,6 +17,7 @@ import java.util.List;
 
 public class ResultsAdapter extends RecyclerView.Adapter<ResultsAdapter.ResultViewHolder> {
 
+    private static final String TAG = "ResultsAdapter";
     private List<Candidate> candidateList;
     private int totalVotes = 0;
 
@@ -29,6 +31,7 @@ public class ResultsAdapter extends RecyclerView.Adapter<ResultsAdapter.ResultVi
         for (Candidate candidate : candidateList) {
             totalVotes += candidate.getVoteCount();
         }
+        Log.d(TAG, "📊 Toplam oy sayısı: " + totalVotes);
     }
 
     @NonNull
@@ -47,17 +50,66 @@ public class ResultsAdapter extends RecyclerView.Adapter<ResultsAdapter.ResultVi
         holder.tvVoteCount.setText(String.valueOf(candidate.getVoteCount()));
 
         // Yüzde hesapla
-        float percentage = totalVotes > 0 ?
-                (float) candidate.getVoteCount() / totalVotes * 100 : 0;
-        holder.tvPercentage.setText(String.format("%.1f%%", percentage));
+        float percentage = 0f;
+        if (totalVotes > 0) {
+            percentage = ((float) candidate.getVoteCount() / (float) totalVotes) * 100f;
+        }
+
+        // Debug log
+        Log.d(TAG, "👤 " + candidate.getName() +
+                " | Oy: " + candidate.getVoteCount() +
+                " | Toplam: " + totalVotes +
+                " | Yüzde: " + percentage);
+
+        // Yüzdeyi göster
+        if (percentage == 0f && candidate.getVoteCount() == 0) {
+            holder.tvPercentage.setText("0%");
+        } else if (percentage < 0.1f && candidate.getVoteCount() > 0) {
+            holder.tvPercentage.setText("<0.1%");
+        } else {
+            holder.tvPercentage.setText(String.format("%.1f%%", percentage));
+        }
 
         // Progress bar'ı ayarla
-        holder.progressBar.setProgress((int) percentage);
+        holder.progressBar.setProgress((int) Math.round(percentage));
+
+        // Progress bar rengi (kazanan için farklı renk)
+        if (candidate.getVoteCount() > 0 && isWinner(candidate)) {
+            holder.progressBar.setProgressTintList(
+                    holder.itemView.getContext().getColorStateList(R.color.green));
+        } else {
+            holder.progressBar.setProgressTintList(
+                    holder.itemView.getContext().getColorStateList(R.color.colorPrimary));
+        }
     }
 
     @Override
     public int getItemCount() {
         return candidateList.size();
+    }
+
+    /**
+     * Listeyi günceller ve yüzdeleri yeniden hesaplar
+     */
+    public void updateCandidates(List<Candidate> newCandidateList) {
+        this.candidateList = newCandidateList;
+        calculateTotalVotes();
+        notifyDataSetChanged();
+    }
+
+    /**
+     * Adayın kazanan olup olmadığını kontrol eder
+     */
+    private boolean isWinner(Candidate candidate) {
+        if (totalVotes == 0) return false;
+
+        int maxVotes = 0;
+        for (Candidate c : candidateList) {
+            if (c.getVoteCount() > maxVotes) {
+                maxVotes = c.getVoteCount();
+            }
+        }
+        return candidate.getVoteCount() == maxVotes && maxVotes > 0;
     }
 
     public static class ResultViewHolder extends RecyclerView.ViewHolder {

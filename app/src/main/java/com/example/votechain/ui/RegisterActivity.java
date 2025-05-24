@@ -3,6 +3,7 @@ package com.example.votechain.ui;
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
@@ -12,6 +13,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.votechain.R;
+import com.example.votechain.blockchain.BlockchainElectionManager;
 import com.example.votechain.model.User;
 import com.example.votechain.service.TCKimlikDogrulama;
 import com.google.android.material.textfield.TextInputEditText;
@@ -149,4 +151,21 @@ public class RegisterActivity extends AppCompatActivity {
         });
     }
 
+    private void addTCIdToBlockchain(String tcKimlikNo) {
+        // Arka planda blockchain'e TC kimlik ekle
+        // Başarısız olsa da uygulama çalışmaya devam etsin
+        try {
+            BlockchainElectionManager electionManager = BlockchainElectionManager.getInstance();
+            electionManager.addValidTCId(tcKimlikNo)
+                    .thenAccept(transactionHash -> {
+                        Log.d("RegisterActivity", "TC kimlik blockchain'e eklendi: " + transactionHash);
+                    })
+                    .exceptionally(e -> {
+                        Log.w("RegisterActivity", "TC kimlik blockchain'e eklenemedi: " + e.getMessage());
+                        return null;
+                    });
+        } catch (Exception e) {
+            Log.w("RegisterActivity", "Blockchain bağlantısı yok: " + e.getMessage());
+        }
+    }
 }

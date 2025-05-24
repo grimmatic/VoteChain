@@ -119,14 +119,14 @@ public class ResultsFragment extends Fragment {
                             electionMap.put(election.getId(), election);
                         }
 
-                        // Spinner için isim listesi oluştur
+
                         List<String> electionNames = new ArrayList<>();
                         electionNames.add("Seçim Seçiniz");
                         for (Election election : electionList) {
                             electionNames.add(election.getName());
                         }
 
-                        // Context'i güvenli bir şekilde kullan
+
                         Context context = getContext();
                         if (context != null) {
                             // Spinner adapter
@@ -168,7 +168,7 @@ public class ResultsFragment extends Fragment {
                             resultsList.add(candidate);
                         }
 
-                        // Oy sayılarına göre azalan sıralama
+
                         Collections.sort(resultsList, new Comparator<Candidate>() {
                             @Override
                             public int compare(Candidate c1, Candidate c2) {
@@ -176,7 +176,13 @@ public class ResultsFragment extends Fragment {
                             }
                         });
 
-                        adapter.notifyDataSetChanged();
+
+                        if (adapter == null) {
+                            adapter = new ResultsAdapter(resultsList);
+                            recyclerViewResults.setAdapter(adapter);
+                        } else {
+                            adapter.updateCandidates(resultsList);
+                        }
 
                         if (resultsList.isEmpty()) {
                             tvNoResults.setText("Bu seçim için sonuç bulunamadı");

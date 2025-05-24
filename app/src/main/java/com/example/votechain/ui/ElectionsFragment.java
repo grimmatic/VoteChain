@@ -82,7 +82,6 @@ public class ElectionsFragment extends Fragment {
         // Oy verme görünümleri
         layoutVoting = view.findViewById(R.id.layoutVoting);
         tvCurrentElection = view.findViewById(R.id.tvCurrentElection);
-        tvBlockchainStatus = view.findViewById(R.id.tvBlockchainStatus);
         recyclerViewCandidates = view.findViewById(R.id.recyclerViewCandidates);
         btnBackToElections = view.findViewById(R.id.btnBackToElections);
         btnSubmitVote = view.findViewById(R.id.btnSubmitVote);
@@ -95,8 +94,7 @@ public class ElectionsFragment extends Fragment {
         mAuth = FirebaseAuth.getInstance();
         electionManager = BlockchainElectionManager.getInstance();
 
-        // Blockchain durumunu kontrol et
-        checkBlockchainStatus();
+
     }
 
     private void setupRecyclerViews() {
@@ -124,17 +122,7 @@ public class ElectionsFragment extends Fragment {
         });
     }
 
-    private void checkBlockchainStatus() {
-        if (electionManager.isSystemReady()) {
-            Map<String, String> systemInfo = electionManager.getSystemInfo();
-            tvBlockchainStatus.setText("🔐 Blockchain Güvenliği: Aktif | Cüzdan: " +
-                    truncateAddress(systemInfo.get("walletAddress")));
-            tvBlockchainStatus.setBackgroundColor(getResources().getColor(R.color.green, null));
-        } else {
-            tvBlockchainStatus.setText("⚠️ Blockchain Durumu: Bağlantı sorunu");
-            tvBlockchainStatus.setBackgroundColor(getResources().getColor(R.color.red, null));
-        }
-    }
+
 
     /**
      * Seçim listesini göster
@@ -278,16 +266,27 @@ public class ElectionsFragment extends Fragment {
                 .get()
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful() && !task.getResult().isEmpty()) {
+                        // Daha önce oy kullanılmış
                         btnSubmitVote.setEnabled(false);
-                        btnSubmitVote.setText("Bu Seçimde Oy Kullandınız");
+                        btnSubmitVote.setText("✅ Bu Seçimde Oy Kullandınız");
+                        btnSubmitVote.setBackgroundTintList(getResources().getColorStateList(R.color.gray));
 
                         Toast.makeText(getContext(),
                                 "Bu seçimde daha önce oy kullandınız. Tekrar oy veremezsiniz.",
                                 Toast.LENGTH_LONG).show();
                     } else {
+                        // Henüz oy kullanılmamış
                         btnSubmitVote.setEnabled(true);
-                        btnSubmitVote.setText("Oyumu Gönder");
+                        btnSubmitVote.setText("🗳️ Oyumu Gönder");
+                        btnSubmitVote.setBackgroundTintList(getResources().getColorStateList(R.color.colorPrimary));
                     }
+                })
+                .addOnFailureListener(e -> {
+                    // Hata durumunda güvenli tarafta kal - oy vermeyi engelle
+                    btnSubmitVote.setEnabled(false);
+                    btnSubmitVote.setText("❌ Oy Durumu Kontrol Edilemiyor");
+                    Toast.makeText(getContext(), "Oy durumu kontrol edilemedi: " + e.getMessage(),
+                            Toast.LENGTH_SHORT).show();
                 });
     }
 
@@ -359,88 +358,164 @@ public class ElectionsFragment extends Fragment {
     }
 
     private void submitVoteWithBlockchain() {
-        progressBar.setVisibility(View.VISIBLE);
-        btnSubmitVote.setEnabled(false);
-
         String userId = mAuth.getCurrentUser().getUid();
 
-        db.collection("users").document(userId)
+        // Önce tekrar oy kontrolü yap (double-check)
+        db.collection("votes")
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("electionId", currentElection.getId())
                 .get()
-                .addOnSuccessListener(documentSnapshot -> {
-                    if (documentSnapshot.exists()) {
-                        User user = documentSnapshot.toObject(User.class);
-                        if (user != null && user.getTcKimlikNo() != null) {
-                            processBlockchainVote(user.getTcKimlikNo());
-                        } else {
-                            progressBar.setVisibility(View.GONE);
-                            btnSubmitVote.setEnabled(true);
-                            Toast.makeText(getContext(), "TC Kimlik bilgisi bulunamadı", Toast.LENGTH_SHORT).show();
-                        }
-                    } else {
-                        progressBar.setVisibility(View.GONE);
-                        btnSubmitVote.setEnabled(true);
-                        Toast.makeText(getContext(), "Kullanıcı bilgileri bulunamadı", Toast.LENGTH_SHORT).show();
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful() && !task.getResult().isEmpty()) {
+                        // Daha önce oy kullanılmış
+                        Toast.makeText(getContext(),
+                                "Bu seçimde zaten oy kullandınız!",
+                                Toast.LENGTH_LONG).show();
+                        checkIfUserAlreadyVoted(currentElection.getId()); // UI'ı güncelle
+                        return;
                     }
+
+                    // Oy kullanılmamış, devam et
+                    progressBar.setVisibility(View.VISIBLE);
+                    btnSubmitVote.setEnabled(false);
+
+                    // Kullanıcı bilgilerini al
+                    db.collection("users").document(userId)
+                            .get()
+                            .addOnSuccessListener(documentSnapshot -> {
+                                if (documentSnapshot.exists()) {
+                                    User user = documentSnapshot.toObject(User.class);
+                                    if (user != null && user.getTcKimlikNo() != null) {
+                                        // Önce TC kimliği blockchain'e ekle, sonra oy ver
+                                        addTCIdAndVote(user.getTcKimlikNo());
+                                    } else {
+                                        progressBar.setVisibility(View.GONE);
+                                        btnSubmitVote.setEnabled(true);
+                                        Toast.makeText(getContext(), "TC Kimlik bilgisi bulunamadı",
+                                                Toast.LENGTH_SHORT).show();
+                                    }
+                                } else {
+                                    progressBar.setVisibility(View.GONE);
+                                    btnSubmitVote.setEnabled(true);
+                                    Toast.makeText(getContext(), "Kullanıcı bilgileri bulunamadı",
+                                            Toast.LENGTH_SHORT).show();
+                                }
+                            })
+                            .addOnFailureListener(e -> {
+                                progressBar.setVisibility(View.GONE);
+                                btnSubmitVote.setEnabled(true);
+                                Toast.makeText(getContext(), "Kullanıcı bilgileri alınamadı: " + e.getMessage(),
+                                        Toast.LENGTH_SHORT).show();
+                            });
                 })
                 .addOnFailureListener(e -> {
-                    progressBar.setVisibility(View.GONE);
-                    btnSubmitVote.setEnabled(true);
-                    Toast.makeText(getContext(), "Kullanıcı bilgileri alınamadı: " + e.getMessage(),
+                    Toast.makeText(getContext(), "Oy durumu kontrol edilemedi: " + e.getMessage(),
                             Toast.LENGTH_SHORT).show();
                 });
     }
-
     private void processBlockchainVote(String tcKimlikNo) {
         electionManager.castVote(currentElection.getId(), selectedCandidateId, tcKimlikNo)
                 .thenAccept(transactionHash -> {
                     if (getActivity() != null) {
                         getActivity().runOnUiThread(() -> {
-                            saveVoteToFirebase(transactionHash);
+                            // Blockchain başarılı, Firebase'e kaydet
+                            saveVoteToFirebase(transactionHash, tcKimlikNo);
                         });
                     }
                 })
                 .exceptionally(e -> {
                     if (getActivity() != null) {
                         getActivity().runOnUiThread(() -> {
-                            progressBar.setVisibility(View.GONE);
-                            btnSubmitVote.setEnabled(true);
-
-                            Toast.makeText(getContext(),
-                                    "Blockchain işlemi başarısız: " + e.getMessage(),
-                                    Toast.LENGTH_LONG).show();
+                            // Blockchain başarısız, sadece Firebase'e kaydet
+                            saveVoteToFirebase(null, tcKimlikNo);
                         });
                     }
                     return null;
                 });
     }
-
-    private void saveVoteToFirebase(String transactionHash) {
+    private void addTCIdAndVote(String tcKimlikNo) {
+        // Önce TC kimliği blockchain'e ekle
+        electionManager.addValidTCId(tcKimlikNo)
+                .thenAccept(transactionHash -> {
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            // TC kimlik eklendi, şimdi oy ver
+                            processBlockchainVote(tcKimlikNo);
+                        });
+                    }
+                })
+                .exceptionally(e -> {
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            // TC kimlik eklenemedi ama yine de oy vermeyi dene
+                            processBlockchainVote(tcKimlikNo);
+                        });
+                    }
+                    return null;
+                });
+    }
+    private void saveVoteToFirebase(String transactionHash, String tcKimlikNo) {
         String userId = mAuth.getCurrentUser().getUid();
 
-        Vote vote = new Vote(userId, currentElection.getId(), selectedCandidateId);
-        vote.setTimestamp(new Date());
-        vote.setTransactionHash(transactionHash);
+        // Son kontrol - tekrar oy kontrolü
+        db.collection("votes")
+                .whereEqualTo("userId", userId)
+                .whereEqualTo("electionId", currentElection.getId())
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful() && !task.getResult().isEmpty()) {
+                        // Bu arada başka yerden oy kullanılmış
+                        progressBar.setVisibility(View.GONE);
+                        Toast.makeText(getContext(),
+                                "Oy işlemi sırasında sistemde bir oy kaydı tespit edildi!",
+                                Toast.LENGTH_LONG).show();
+                        checkIfUserAlreadyVoted(currentElection.getId());
+                        return;
+                    }
 
-        db.collection("votes").add(vote)
-                .addOnSuccessListener(documentReference -> {
-                    updateCandidateVoteCount();
+                    // Güvenli, oy kaydı yap
+                    Vote vote = new Vote(userId, currentElection.getId(), selectedCandidateId);
+                    vote.setTimestamp(new Date());
 
-                    progressBar.setVisibility(View.GONE);
+                    if (transactionHash != null) {
+                        vote.setTransactionHash(transactionHash);
+                    }
 
-                    Toast.makeText(getContext(),
-                            "✅ Oyunuz başarıyla kaydedildi ve blockchain üzerinde doğrulandı!",
-                            Toast.LENGTH_LONG).show();
+                    // Firebase'e kaydet
+                    db.collection("votes").add(vote)
+                            .addOnSuccessListener(documentReference -> {
+                                // Aday oy sayısını artır
+                                updateCandidateVoteCount();
 
-                    // Seçim listesine geri dön
-                    showElectionsList();
-                })
-                .addOnFailureListener(e -> {
-                    progressBar.setVisibility(View.GONE);
-                    btnSubmitVote.setEnabled(true);
+                                progressBar.setVisibility(View.GONE);
 
-                    Toast.makeText(getContext(),
-                            "Firebase kaydı başarısız: " + e.getMessage(),
-                            Toast.LENGTH_SHORT).show();
+                                String message = "✅ Oyunuz başarıyla kaydedildi!";
+                                if (transactionHash != null) {
+                                    message += "\n🔗 Blockchain: Doğrulandı";
+                                } else {
+                                    message += "\n📝 Veritabanı: Kaydedildi";
+                                }
+
+                                Toast.makeText(getContext(), message, Toast.LENGTH_LONG).show();
+
+                                // UI'ı güncelle - oy verme durumunu göster
+                                checkIfUserAlreadyVoted(currentElection.getId());
+
+                                // 2 saniye sonra seçim listesine dön
+                                new android.os.Handler().postDelayed(() -> {
+                                    if (getActivity() != null && !isDetached()) {
+                                        showElectionsList();
+                                    }
+                                }, 2000);
+                            })
+                            .addOnFailureListener(e -> {
+                                progressBar.setVisibility(View.GONE);
+                                btnSubmitVote.setEnabled(true);
+
+                                Toast.makeText(getContext(),
+                                        "❌ Oy kaydedilemedi: " + e.getMessage(),
+                                        Toast.LENGTH_LONG).show();
+                            });
                 });
     }
 
@@ -454,11 +529,28 @@ public class ElectionsFragment extends Fragment {
                         if (candidate != null) {
                             int newVoteCount = candidate.getVoteCount() + 1;
 
+                            // Debug log ekle
+                            Log.d("VoteCount", "Aday: " + candidate.getName() +
+                                    " | Eski oy: " + candidate.getVoteCount() +
+                                    " | Yeni oy: " + newVoteCount);
+
+                            // Firebase'de güncelle
                             db.collection("elections").document(currentElection.getId())
                                     .collection("candidates").document(selectedCandidateId)
-                                    .update("voteCount", newVoteCount);
+                                    .update("voteCount", newVoteCount)
+                                    .addOnSuccessListener(aVoid -> {
+                                        Log.d("VoteCount", "Oy sayısı başarıyla güncellendi!");
+                                    })
+                                    .addOnFailureListener(e -> {
+                                        Log.e("VoteCount", "Oy sayısı güncellenemedi: " + e.getMessage());
+                                    });
                         }
+                    } else {
+                        Log.e("VoteCount", "Aday bulunamadı: " + selectedCandidateId);
                     }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e("VoteCount", "Aday bilgileri alınamadı: " + e.getMessage());
                 });
     }
 
@@ -475,7 +567,7 @@ public class ElectionsFragment extends Fragment {
         if (layoutElectionsList.getVisibility() == View.VISIBLE) {
             loadElections();
         }
-        checkBlockchainStatus();
+
     }
 
     /**
