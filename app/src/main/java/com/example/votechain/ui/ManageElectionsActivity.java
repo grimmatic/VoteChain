@@ -1,0 +1,155 @@
+package com.example.votechain.ui;
+
+import android.os.Bundle;
+import android.view.View;
+import android.widget.ProgressBar;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.example.votechain.R;
+import com.example.votechain.model.Election;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Mevcut seçimleri görüntüleme ve yönetme activity'si
+ */
+public class ManageElectionsActivity extends AppCompatActivity {
+
+    private RecyclerView recyclerViewElections;
+    private ProgressBar progressBar;
+    private TextView tvNoElections;
+
+    private FirebaseFirestore db;
+    private List<Election> electionList;
+    private ManageElectionAdapter adapter;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_manage_elections);
+
+        initViews();
+        setupRecyclerView();
+        loadElections();
+    }
+
+    private void initViews() {
+        recyclerViewElections = findViewById(R.id.recyclerViewElections);
+        progressBar = findViewById(R.id.progressBar);
+        tvNoElections = findViewById(R.id.tvNoElections);
+
+        db = FirebaseFirestore.getInstance();
+    }
+
+    private void setupRecyclerView() {
+        electionList = new ArrayList<>();
+        adapter = new ManageElectionAdapter(electionList, new ManageElectionAdapter.OnElectionActionListener() {
+            @Override
+            public void onElectionEdit(Election election) {
+                // Seçim düzenleme işlemi
+                Toast.makeText(ManageElectionsActivity.this,
+                        "Düzenleme: " + election.getName(), Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onElectionDelete(Election election) {
+                // Seçim silme işlemi
+                deleteElection(election);
+            }
+
+            @Override
+            public void onElectionToggle(Election election) {
+                // Seçim aktif/pasif durumu değiştirme
+                toggleElectionStatus(election);
+            }
+        });
+
+        recyclerViewElections.setLayoutManager(new LinearLayoutManager(this));
+        recyclerViewElections.setAdapter(adapter);
+    }
+
+    private void loadElections() {
+        progressBar.setVisibility(View.VISIBLE);
+        tvNoElections.setVisibility(View.GONE);
+
+        db.collection("elections")
+                .get()
+                .addOnCompleteListener(task -> {
+                    progressBar.setVisibility(View.GONE);
+
+                    if (task.isSuccessful()) {
+                        electionList.clear();
+
+                        for (QueryDocumentSnapshot document : task.getResult()) {
+                            Election election = document.toObject(Election.class);
+                            election.setId(document.getId());
+                            electionList.add(election);
+                        }
+
+                        adapter.notifyDataSetChanged();
+
+                        if (electionList.isEmpty()) {
+                            tvNoElections.setVisibility(View.VISIBLE);
+                            tvNoElections.setText("Henüz hiç seçim oluşturulmamış");
+                        } else {
+                            tvNoElections.setVisibility(View.GONE);
+                        }
+                    } else {
+                        Toast.makeText(this,
+                                "Seçimler yüklenirken hata oluştu: " + task.getException().getMessage(),
+                                Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }
+
+    private void deleteElection(Election election) {
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Seçimi Sil")
+                .setMessage("'" + election.getName() + "' seçimini silmek istediğinize emin misiniz?")
+                .setPositiveButton("Evet", (dialog, which) -> {
+                    progressBar.setVisibility(View.VISIBLE);
+
+                    db.collection("elections").document(election.getId())
+                            .delete()
+                            .addOnSuccessListener(aVoid -> {
+                                progressBar.setVisibility(View.GONE);
+                                Toast.makeText(this, "Seçim başarıyla silindi", Toast.LENGTH_SHORT).show();
+                                loadElections();
+                            })
+                            .addOnFailureListener(e -> {
+                                progressBar.setVisibility(View.GONE);
+                                Toast.makeText(this, "Seçim silinemedi: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                            });
+                })
+                .setNegativeButton("İptal", null)
+                .show();
+    }
+
+    private void toggleElectionStatus(Election election) {
+        progressBar.setVisibility(View.VISIBLE);
+
+        boolean newStatus = !election.isActive();
+
+        db.collection("elections").document(election.getId())
+                .update("active", newStatus)
+                .addOnSuccessListener(aVoid -> {
+                    progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this,
+                            "Seçim " + (newStatus ? "aktif edildi" : "pasif edildi"),
+                            Toast.LENGTH_SHORT).show();
+                    loadElections();
+                })
+                .addOnFailureListener(e -> {
+                    progressBar.setVisibility(View.GONE);
+                    Toast.makeText(this, "Durum değiştirilemedi: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+    }
+}

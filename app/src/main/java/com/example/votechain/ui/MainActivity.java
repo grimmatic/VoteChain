@@ -3,6 +3,7 @@ package com.example.votechain.ui;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.MenuItem;
+import android.widget.Button;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -58,6 +59,8 @@ public class MainActivity extends AppCompatActivity {
                             "Kullanıcı bilgileri alınamadı: " + e.getMessage(),
                             Toast.LENGTH_SHORT).show();
                 });
+
+
     }
 
     private BottomNavigationView.OnNavigationItemSelectedListener navListener =

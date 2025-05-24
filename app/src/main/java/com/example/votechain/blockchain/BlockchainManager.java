@@ -64,20 +64,34 @@ public class BlockchainManager {
      */
     public boolean initializeWallet(Context context, String password) {
         try {
+            Log.d(TAG, "Wallet initialization started...");
+
             // Cüzdan dizinini oluştur
             File walletDir = new File(context.getFilesDir(), "ethereum");
             if (!walletDir.exists()) {
-                walletDir.mkdirs();
+                boolean created = walletDir.mkdirs();
+                Log.d(TAG, "Wallet directory created: " + created);
             }
 
             File[] walletFiles = walletDir.listFiles();
             if (walletFiles != null && walletFiles.length > 0) {
                 // Mevcut cüzdanı yükle
+                Log.d(TAG, "Loading existing wallet...");
                 credentials = WalletUtils.loadCredentials(password, walletFiles[0].getAbsolutePath());
+                Log.d(TAG, "Existing wallet loaded successfully");
             } else {
                 // Yeni cüzdan oluştur
+                Log.d(TAG, "Creating new wallet...");
+
+                // BouncyCastle provider kontrolü
+                if (java.security.Security.getProvider("BC") == null) {
+                    Log.e(TAG, "BouncyCastle provider not found!");
+                    return false;
+                }
+
                 String walletFileName = WalletUtils.generateLightNewWalletFile(password, walletDir);
                 credentials = WalletUtils.loadCredentials(password, new File(walletDir, walletFileName).getAbsolutePath());
+                Log.d(TAG, "New wallet created successfully");
             }
 
             Log.d(TAG, "Wallet initialized: " + credentials.getAddress());
@@ -85,8 +99,17 @@ public class BlockchainManager {
             // Kontrat bağlantısını başlat
             initializeContract();
             return true;
+
         } catch (Exception e) {
-            Log.e(TAG, "Error initializing wallet", e);
+            Log.e(TAG, "Error initializing wallet: " + e.getMessage(), e);
+
+            // Detaylı hata bilgisi
+            if (e instanceof java.security.NoSuchAlgorithmException) {
+                Log.e(TAG, "Crypto algorithm not found. Check BouncyCastle provider.");
+            } else if (e instanceof java.security.NoSuchProviderException) {
+                Log.e(TAG, "Crypto provider not found. Check BouncyCastle installation.");
+            }
+
             return false;
         }
     }

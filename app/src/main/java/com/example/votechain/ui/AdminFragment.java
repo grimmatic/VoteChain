@@ -1,6 +1,7 @@
 package com.example.votechain.ui;
 
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -22,6 +23,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -33,6 +35,11 @@ public class AdminFragment extends Fragment {
     private FirebaseFirestore db;
     private ProgressBar progressBar;
 
+    // Admin işlemleri için butonlar
+    private Button btnBlockchainTest;
+    private Button btnCreateElection;
+    private Button btnManageElections;
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -40,6 +47,11 @@ public class AdminFragment extends Fragment {
 
         recyclerView = view.findViewById(R.id.recyclerViewUsers);
         progressBar = view.findViewById(R.id.progressBar);
+
+        // Admin işlemleri butonları
+        btnBlockchainTest = view.findViewById(R.id.btnBlockchainTest);
+        btnCreateElection = view.findViewById(R.id.btnCreateElection);
+        btnManageElections = view.findViewById(R.id.btnManageElections);
 
         db = FirebaseFirestore.getInstance();
         userList = new ArrayList<>();
@@ -58,20 +70,45 @@ public class AdminFragment extends Fragment {
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         recyclerView.setAdapter(adapter);
 
+        setupAdminButtons();
         loadUsers();
 
         return view;
+    }
+
+    private void setupAdminButtons() {
+        // Blockchain Test butonu
+        btnBlockchainTest.setOnClickListener(v -> {
+            Intent intent = new Intent(getActivity(), TestActivity.class);
+            startActivity(intent);
+        });
+
+        // Seçim Oluştur butonu
+        btnCreateElection.setOnClickListener(v -> {
+            Intent intent = new Intent(getActivity(), AdminElectionActivity.class);
+            startActivity(intent);
+        });
+
+        // Seçimleri Yönet butonu
+        btnManageElections.setOnClickListener(v -> {
+            Intent intent = new Intent(getActivity(), ManageElectionsActivity.class);
+            startActivity(intent);
+        });
     }
 
     private void loadUsers() {
         progressBar.setVisibility(View.VISIBLE);
 
         db.collection("users")
-                .get()  // Tüm kullanıcıları almak için herhangi bir filtreleme yapma
+                .get()
                 .addOnCompleteListener(task -> {
+                    if (getContext() == null || getActivity() == null || isDetached()) {
+                        return;
+                    }
+
                     progressBar.setVisibility(View.GONE);
 
-                    if (task.isSuccessful() && getContext() != null) {
+                    if (task.isSuccessful()) {
                         userList.clear();
                         for (DocumentSnapshot document : task.getResult()) {
                             User user = document.toObject(User.class);
@@ -81,7 +118,6 @@ public class AdminFragment extends Fragment {
                         }
                         adapter.notifyDataSetChanged();
 
-                        // Hiç kullanıcı yoksa bunu göster
                         if (userList.isEmpty()) {
                             Toast.makeText(getContext(),
                                     "Hiç kullanıcı bulunamadı",
@@ -99,23 +135,19 @@ public class AdminFragment extends Fragment {
     private void deleteUser(User user) {
         if (getContext() == null) return;
 
-        // Mevcut kullanıcı ID'si
         String currentUserId = FirebaseAuth.getInstance().getCurrentUser().getUid();
 
-        // Kendini silememe kontrolü
         if (currentUserId.equals(user.getUserId())) {
             Toast.makeText(getContext(), "Kendinizi silemezsiniz!", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        // Kullanıcı silme onayı al
         new AlertDialog.Builder(getContext())
                 .setTitle("Kullanıcıyı Sil")
                 .setMessage(user.getAd() + " " + user.getSoyad() + " kullanıcısını silmek istediğinize emin misiniz?")
                 .setPositiveButton("Evet", (dialog, which) -> {
                     progressBar.setVisibility(View.VISIBLE);
 
-                    // 1. Firestore'dan kullanıcı bilgilerini sil
                     db.collection("users").document(user.getUserId())
                             .delete()
                             .addOnSuccessListener(aVoid -> {
@@ -123,7 +155,7 @@ public class AdminFragment extends Fragment {
                                 Toast.makeText(getContext(),
                                         "Kullanıcı başarıyla silindi",
                                         Toast.LENGTH_SHORT).show();
-                                loadUsers(); // Listeyi yenile
+                                loadUsers();
                             })
                             .addOnFailureListener(e -> {
                                 progressBar.setVisibility(View.GONE);
@@ -137,6 +169,7 @@ public class AdminFragment extends Fragment {
                 .setNegativeButton("İptal", null)
                 .show();
     }
+
     private void makeAdmin(User user) {
         if (getContext() == null) return;
 
@@ -146,7 +179,6 @@ public class AdminFragment extends Fragment {
                 .setPositiveButton("Evet", (dialog, which) -> {
                     progressBar.setVisibility(View.VISIBLE);
 
-                    // Kullanıcının rolünü "admin" olarak güncelle
                     db.collection("users").document(user.getUserId())
                             .update("role", "admin")
                             .addOnSuccessListener(aVoid -> {
@@ -155,7 +187,7 @@ public class AdminFragment extends Fragment {
                                     Toast.makeText(getContext(),
                                             "Kullanıcı başarıyla yönetici yapıldı",
                                             Toast.LENGTH_SHORT).show();
-                                    loadUsers(); // Listeyi yenile
+                                    loadUsers();
                                 }
                             })
                             .addOnFailureListener(e -> {
@@ -170,7 +202,8 @@ public class AdminFragment extends Fragment {
                 .setNegativeButton("İptal", null)
                 .show();
     }
-    // Kullanıcı Adapter Sınıfı
+
+    // UserAdapter sınıfı aynı kalacak...
     static class UserAdapter extends RecyclerView.Adapter<UserAdapter.ViewHolder> {
         private List<User> userList;
         private OnUserActionListener listener;
@@ -200,7 +233,6 @@ public class AdminFragment extends Fragment {
             holder.tvTcNo.setText("TC: " + user.getTcKimlikNo());
             holder.tvBirthYear.setText("Doğum Yılı: " + user.getDogumYili());
 
-            // Kullanıcı zaten admin ise butonu gizle
             if ("admin".equals(user.getRole())) {
                 holder.btnMakeAdmin.setVisibility(View.GONE);
                 holder.tvName.setText(user.getAd() + " " + user.getSoyad() + " (Yönetici)");
@@ -208,13 +240,8 @@ public class AdminFragment extends Fragment {
                 holder.btnMakeAdmin.setVisibility(View.VISIBLE);
             }
 
-            holder.btnDelete.setOnClickListener(v -> {
-                listener.onUserDelete(user);
-            });
-
-            holder.btnMakeAdmin.setOnClickListener(v -> {
-                listener.onMakeAdmin(user);
-            });
+            holder.btnDelete.setOnClickListener(v -> listener.onUserDelete(user));
+            holder.btnMakeAdmin.setOnClickListener(v -> listener.onMakeAdmin(user));
         }
 
         @Override
