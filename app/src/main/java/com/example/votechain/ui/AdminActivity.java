@@ -6,17 +6,19 @@ import android.view.View;
 import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
 import com.example.votechain.R;
-import com.example.votechain.blockchain.BlockchainManager;
+import com.example.votechain.blockchain.BlockchainElectionManager;
 import com.example.votechain.model.Candidate;
 import com.example.votechain.model.Election;
-import java.math.BigInteger;
+import com.google.firebase.firestore.FirebaseFirestore;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
-/**
- * Admin paneli - Seçim oluşturma ve yönetme
- */
+
 public class AdminActivity extends AppCompatActivity {
 
     private static final String TAG = "AdminActivity";
@@ -27,13 +29,16 @@ public class AdminActivity extends AppCompatActivity {
     private TimePicker tpStartTime, tpEndTime;
     private EditText etCandidateName, etCandidateParty;
     private ListView lvCandidates;
-    private Button btnCreateElection, btnAddCandidate, btnStartElection;
+    private Button btnCreateElection, btnAddCandidate, btnRegisterTCIds, btnActivateElection;
     private TextView tvStatus;
 
     // Data
-    private BlockchainManager blockchainManager;
+    private BlockchainElectionManager electionManager;
     private ArrayAdapter<String> candidatesAdapter;
-    private BigInteger currentElectionId;
+    private List<Candidate> candidatesList;
+    private String currentElectionId;
+    private boolean systemReady = false;
+    private FirebaseFirestore db;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,10 +48,12 @@ public class AdminActivity extends AppCompatActivity {
         initViews();
         setupListeners();
 
-        blockchainManager = BlockchainManager.getInstance();
+        electionManager = BlockchainElectionManager.getInstance();
+        candidatesList = new ArrayList<>();
+        db = FirebaseFirestore.getInstance();
 
-        // Admin cüzdanını başlat
-        initializeAdminWallet();
+        // Blockchain sistemini başlat
+        initializeBlockchainSystem();
     }
 
     private void initViews() {
@@ -61,45 +68,67 @@ public class AdminActivity extends AppCompatActivity {
         lvCandidates = findViewById(R.id.lvCandidates);
         btnCreateElection = findViewById(R.id.btnCreateElection);
         btnAddCandidate = findViewById(R.id.btnAddCandidate);
-        btnStartElection = findViewById(R.id.btnStartElection);
+        btnActivateElection = findViewById(R.id.btnStartElection);
         tvStatus = findViewById(R.id.tvStatus);
 
         // ListView adapter
         candidatesAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1);
         lvCandidates.setAdapter(candidatesAdapter);
 
-        // Başlangıçta sadece seçim oluşturma aktif
-        btnAddCandidate.setEnabled(false);
-        btnStartElection.setEnabled(false);
+        // Başlangıçta tüm butonları deaktif et
+        setButtonsEnabled(false);
     }
 
     private void setupListeners() {
         btnCreateElection.setOnClickListener(v -> createElection());
         btnAddCandidate.setOnClickListener(v -> addCandidate());
-        btnStartElection.setOnClickListener(v -> startElection());
+        btnActivateElection.setOnClickListener(v -> activateElection());
     }
 
     /**
-     * Admin cüzdanını başlat
+     * Blockchain sistemini başlatır
      */
-    private void initializeAdminWallet() {
-        updateStatus("🔐 Admin cüzdanı başlatılıyor...");
+    private void initializeBlockchainSystem() {
+        updateStatus("🔧 Blockchain sistemi başlatılıyor...\n" +
+                "Ethereum ağına bağlanıyor...");
 
-        boolean success = blockchainManager.initializeWallet(this, "admin123");
-
-        if (success) {
-            String address = blockchainManager.getWalletAddress();
-            updateStatus("✅ Admin cüzdanı hazır!\n" +
-                    "📍 Adres: " + address.substring(0, 10) + "...\n\n" +
-                    "Seçim oluşturmaya başlayabilirsiniz!");
-            btnCreateElection.setEnabled(true);
-        } else {
-            updateStatus("❌ Admin cüzdanı başlatılamadı!");
-        }
+        electionManager.initializeSystem(this)
+                .thenAccept(success -> {
+                    runOnUiThread(() -> {
+                        if (success) {
+                            systemReady = true;
+                            showSystemInfo();
+                            btnCreateElection.setEnabled(true);
+                        } else {
+                            updateStatus("❌ Blockchain sistemi başlatılamadı!\n" +
+                                    "Lütfen internet bağlantınızı kontrol edin.");
+                        }
+                    });
+                })
+                .exceptionally(e -> {
+                    runOnUiThread(() -> {
+                        updateStatus("❌ Sistem başlatma hatası:\n" + e.getMessage());
+                        Log.e(TAG, "System initialization error", e);
+                    });
+                    return null;
+                });
     }
 
     /**
-     * Yeni seçim oluştur
+     * Sistem bilgilerini gösterir
+     */
+    private void showSystemInfo() {
+        Map<String, String> systemInfo = electionManager.getSystemInfo();
+
+        updateStatus("✅ VoteChain Sistemi Hazır!\n\n" +
+                "🏛️ Admin Paneli Aktif\n" +
+                "🔐 Cüzdan: " + truncateAddress(systemInfo.get("walletAddress")) + "\n" +
+                "📜 Kontrat: " + truncateAddress(systemInfo.get("contractAddress")) + "\n\n" +
+                "Artık seçim oluşturabilirsiniz!");
+    }
+
+    /**
+     * Yeni seçim oluşturur
      */
     private void createElection() {
         String name = etElectionName.getText().toString().trim();
@@ -110,7 +139,9 @@ public class AdminActivity extends AppCompatActivity {
             return;
         }
 
-        updateStatus("🗳️ Seçim oluşturuluyor: " + name);
+        if (description.isEmpty()) {
+            description = name + " seçimi";
+        }
 
         // Tarih ve saat bilgilerini al
         Calendar startCalendar = Calendar.getInstance();
@@ -124,34 +155,45 @@ public class AdminActivity extends AppCompatActivity {
                 tpEndTime.getCurrentMinute(), 0);
 
         // Zaman kontrolü
-        if (startCalendar.after(endCalendar)) {
+        if (!startCalendar.before(endCalendar)) {
             Toast.makeText(this, "Bitiş zamanı başlangıçtan sonra olmalı!", Toast.LENGTH_SHORT).show();
             return;
         }
 
+        updateStatus("🗳️ Seçim oluşturuluyor...\n" +
+                "📋 Ad: " + name + "\n" +
+                "⏰ Başlangıç: " + formatDateTime(startCalendar) + "\n" +
+                "🏁 Bitiş: " + formatDateTime(endCalendar) + "\n\n" +
+                "Blockchain işlemi devam ediyor...");
+
         Election election = new Election(name, description,
                 startCalendar.getTime(),
                 endCalendar.getTime(),
-                true);
+                false); // Başlangıçta pasif
 
-        blockchainManager.createElection(election)
-                .thenAccept(transactionHash -> {
+        electionManager.createElection(election)
+                .thenAccept(electionId -> {
                     runOnUiThread(() -> {
-                        // Seçim ID'sini güncelle (genellikle sıradaki sayı)
-                        currentElectionId = BigInteger.ONE; // İlk seçim için
+                        currentElectionId = electionId;
 
-                        updateStatus("✅ Seçim oluşturuldu!\n" +
-                                "📋 Ad: " + name + "\n" +
-                                "🔗 İşlem: " + transactionHash.substring(0, 10) + "...\n\n" +
+                        updateStatus("✅ Seçim başarıyla oluşturuldu!\n\n" +
+                                "📋 Seçim: " + name + "\n" +
+                                "🆔 ID: " + electionId + "\n" +
+                                "🔗 Blockchain: Entegre edildi\n\n" +
                                 "Şimdi adayları ekleyebilirsiniz!");
 
-                        btnAddCandidate.setEnabled(true);
+                        // UI güncellemeleri
                         btnCreateElection.setEnabled(false);
+                        btnAddCandidate.setEnabled(true);
+
+                        // Form temizle
+                        etElectionName.setText("");
+                        etElectionDescription.setText("");
                     });
                 })
                 .exceptionally(e -> {
                     runOnUiThread(() -> {
-                        updateStatus("❌ Seçim oluşturma hatası: " + e.getMessage());
+                        updateStatus("❌ Seçim oluşturma hatası:\n" + e.getMessage());
                         Log.e(TAG, "Election creation error", e);
                     });
                     return null;
@@ -159,7 +201,7 @@ public class AdminActivity extends AppCompatActivity {
     }
 
     /**
-     * Seçime aday ekle
+     * Seçime aday ekler
      */
     private void addCandidate() {
         String name = etCandidateName.getText().toString().trim();
@@ -178,34 +220,42 @@ public class AdminActivity extends AppCompatActivity {
         final String finalName = name;
         final String finalParty = party;
 
-        updateStatus("👤 Aday ekleniyor: " + finalName + " (" + finalParty + ")");
+        updateStatus("👤 Aday ekleniyor...\n" +
+                "📝 Ad: " + finalName + "\n" +
+                "🏛️ Parti: " + finalParty + "\n\n" +
+                "Blockchain kaydı yapılıyor...");
 
-        Candidate candidate = new Candidate(currentElectionId.toString(), finalName, finalParty);
+        Candidate candidate = new Candidate(currentElectionId, finalName, finalParty);
 
-        blockchainManager.addCandidate(currentElectionId, candidate)
-                .thenAccept(transactionHash -> {
+        electionManager.addCandidate(currentElectionId, candidate)
+                .thenAccept(candidateId -> {
                     runOnUiThread(() -> {
                         // Listeye ekle
+                        candidatesList.add(candidate);
                         candidatesAdapter.add(finalName + " - " + finalParty);
                         candidatesAdapter.notifyDataSetChanged();
 
-                        updateStatus("✅ Aday eklendi: " + finalName + "\n" +
-                                "🔗 İşlem: " + transactionHash.substring(0, 10) + "...\n\n" +
-                                "Toplam aday: " + candidatesAdapter.getCount());
+                        updateStatus("✅ Aday başarıyla eklendi!\n\n" +
+                                "👤 " + finalName + " (" + finalParty + ")\n" +
+                                "🆔 ID: " + candidateId + "\n" +
+                                "📊 Toplam Aday: " + candidatesList.size() + "\n\n" +
+                                (candidatesList.size() >= 2 ?
+                                        "✨ Seçimi aktifleştirmeye hazır!" :
+                                        "En az 2 aday gerekli"));
 
                         // Form temizle
                         etCandidateName.setText("");
                         etCandidateParty.setText("");
 
-                        // Seçimi başlatma butonunu aktif et
-                        if (candidatesAdapter.getCount() >= 2) {
-                            btnStartElection.setEnabled(true);
+                        // 2 aday olunca aktifleştirme butonunu aç
+                        if (candidatesList.size() >= 2) {
+                            btnActivateElection.setEnabled(true);
                         }
                     });
                 })
                 .exceptionally(e -> {
                     runOnUiThread(() -> {
-                        updateStatus("❌ Aday ekleme hatası: " + e.getMessage());
+                        updateStatus("❌ Aday ekleme hatası:\n" + e.getMessage());
                         Log.e(TAG, "Candidate addition error", e);
                     });
                     return null;
@@ -213,43 +263,127 @@ public class AdminActivity extends AppCompatActivity {
     }
 
     /**
-     * Seçimi başlat (aktif hale getir)
+     * Seçimi aktifleştirir
      */
-    private void startElection() {
-        updateStatus("🚀 Seçim başlatılıyor...");
+    private void activateElection() {
+        updateStatus("🚀 Seçim aktifleştiriliyor...\n" +
+                "📊 " + candidatesList.size() + " aday ile seçim başlatılıyor\n\n" +
+                "Son işlemler yapılıyor...");
 
-        // Seçimi aktif hale getir
-        blockchainManager.setElectionActive(currentElectionId, true)
+        // İlk olarak bazı test TC kimlik numaralarını ekle
+        addSampleTCIds();
+    }
+
+    /**
+     * Test amaçlı TC kimlik numaralarını ekler
+     */
+    private void addSampleTCIds() {
+        final List<String> sampleTCIds = Arrays.asList(
+                "12345678901",
+                "12345678902",
+                "12345678903",
+                "12345678904",
+                "12345678905"
+        );
+
+        // Her TC ID için ayrı ayrı ekleme işlemi yap
+        addTCIdRecursively(sampleTCIds, 0);
+    }
+
+    /**
+     * TC ID'lerini sırayla ekler
+     */
+    private void addTCIdRecursively(final List<String> tcIds, int index) {
+        if (index >= tcIds.size()) {
+            // Tüm TC ID'ler eklendi, seçimi Firebase'de aktif hale getir
+            activateElectionInFirebase();
+            return;
+        }
+
+        String tcId = tcIds.get(index);
+        electionManager.addValidTCId(tcId)
                 .thenAccept(transactionHash -> {
-                    runOnUiThread(() -> {
-                        updateStatus("🎉 SEÇİM BAŞLADI!\n\n" +
-                                "✅ Vatandaşlar artık oy verebilir\n" +
-                                "📊 Toplam aday: " + candidatesAdapter.getCount() + "\n" +
-                                "🔗 İşlem: " + transactionHash.substring(0, 10) + "...\n\n" +
-                                "Seçim uygulamasına geçebilirsiniz!");
-
-                        btnStartElection.setEnabled(false);
-
-                        // Ana uygulamaya yönlendir
-                        Toast.makeText(AdminActivity.this,
-                                "Seçim başladı! Ana uygulamayı açabilirsiniz.",
-                                Toast.LENGTH_LONG).show();
-                    });
+                    Log.d(TAG, "TC ID eklendi: " + tcId + " -> " + transactionHash);
+                    // Bir sonraki TC ID'yi ekle
+                    addTCIdRecursively(tcIds, index + 1);
                 })
                 .exceptionally(e -> {
-                    runOnUiThread(() -> {
-                        updateStatus("❌ Seçim başlatma hatası: " + e.getMessage());
-                        Log.e(TAG, "Election start error", e);
-                    });
+                    Log.w(TAG, "TC ID eklenirken hata: " + tcId, e);
+                    // Hata olsa da devam et
+                    addTCIdRecursively(tcIds, index + 1);
                     return null;
                 });
     }
 
     /**
-     * Durum metnini güncelle
+     * Seçimi Firebase'de aktif hale getirir
+     */
+    private void activateElectionInFirebase() {
+        if (currentElectionId == null) {
+            updateStatus("❌ Seçim ID'si bulunamadı!");
+            return;
+        }
+
+        // Firebase'de seçimi aktif hale getir
+        db.collection("elections").document(currentElectionId)
+                .update("active", true)
+                .addOnSuccessListener(aVoid -> {
+                    runOnUiThread(() -> {
+                        updateStatus("🎉 SEÇİM AKTİF!\n\n" +
+                                "✅ Vatandaşlar artık oy verebilir\n" +
+                                "📊 Aday Sayısı: " + candidatesList.size() + "\n" +
+                                "🔐 Blockchain Güvenliği: Aktif\n" +
+                                "🗳️ Şeffaf Oylama: Hazır\n\n" +
+                                "Seçim kullanıcılara görünür hale geldi!");
+
+                        // Tüm butonları deaktif et
+                        setButtonsEnabled(false);
+                        btnActivateElection.setEnabled(false);
+
+                        Toast.makeText(AdminActivity.this,
+                                "Seçim başarıyla aktifleştirildi! Kullanıcılar artık seçimi görebilir ve oy verebilir.",
+                                Toast.LENGTH_LONG).show();
+                    });
+                })
+                .addOnFailureListener(e -> {
+                    runOnUiThread(() -> {
+                        updateStatus("❌ Seçim aktifleştirme hatası:\n" + e.getMessage());
+                        Log.e(TAG, "Firebase activation error", e);
+                    });
+                });
+    }
+
+    /**
+     * Butonların aktif/pasif durumunu ayarlar
+     */
+    private void setButtonsEnabled(boolean enabled) {
+        btnCreateElection.setEnabled(enabled && systemReady);
+        btnAddCandidate.setEnabled(enabled && currentElectionId != null);
+    }
+
+    /**
+     * Durum metnini günceller
      */
     private void updateStatus(String status) {
         tvStatus.setText(status);
         Log.d(TAG, status);
+    }
+
+    /**
+     * Ethereum adresini kısaltır
+     */
+    private String truncateAddress(String address) {
+        if (address != null && address.length() > 10) {
+            return address.substring(0, 6) + "..." + address.substring(address.length() - 4);
+        }
+        return address;
+    }
+
+    /**
+     * Tarih ve saati formatlar
+     */
+    private String formatDateTime(Calendar calendar) {
+        SimpleDateFormat formatter = new SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault());
+        return formatter.format(calendar.getTime());
     }
 }

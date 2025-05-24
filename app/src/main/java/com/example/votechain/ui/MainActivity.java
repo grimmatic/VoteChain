@@ -3,7 +3,6 @@ package com.example.votechain.ui;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.MenuItem;
-import android.widget.Button;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -19,6 +18,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 public class MainActivity extends AppCompatActivity {
 
     private BottomNavigationView bottomNavigationView;
+    private ElectionsFragment currentElectionsFragment;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,20 +38,21 @@ public class MainActivity extends AppCompatActivity {
 
         // Varsayılan fragment
         if (savedInstanceState == null) {
+            currentElectionsFragment = new ElectionsFragment();
             getSupportFragmentManager().beginTransaction()
-                    .replace(R.id.fragmentContainer, new ElectionsFragment())
+                    .replace(R.id.fragmentContainer, currentElectionsFragment)
                     .commit();
         }
 
+        // Admin kontrolü
         bottomNavigationView.getMenu().findItem(R.id.nav_admin).setVisible(false);
         String userId = FirebaseAuth.getInstance().getCurrentUser().getUid();
         FirebaseFirestore.getInstance().collection("users").document(userId)
                 .get()
                 .addOnSuccessListener(documentSnapshot -> {
                     User user = documentSnapshot.toObject(User.class);
-                    if (user != null&&"admin".equals(user.getRole())) {
-
-                            bottomNavigationView.getMenu().findItem(R.id.nav_admin).setVisible(true);
+                    if (user != null && "admin".equals(user.getRole())) {
+                        bottomNavigationView.getMenu().findItem(R.id.nav_admin).setVisible(true);
                     }
                 })
                 .addOnFailureListener(e -> {
@@ -59,8 +60,6 @@ public class MainActivity extends AppCompatActivity {
                             "Kullanıcı bilgileri alınamadı: " + e.getMessage(),
                             Toast.LENGTH_SHORT).show();
                 });
-
-
     }
 
     private BottomNavigationView.OnNavigationItemSelectedListener navListener =
@@ -71,9 +70,17 @@ public class MainActivity extends AppCompatActivity {
 
                     int itemId = item.getItemId();
                     if (itemId == R.id.nav_elections) {
+                        // Aynı fragment'ı tekrar yükleme, sadece seçim listesini göster
+                        if (currentElectionsFragment != null) {
+                            currentElectionsFragment.showElectionsList();
+                            return true;
+                        }
                         selectedFragment = new ElectionsFragment();
+                        currentElectionsFragment = (ElectionsFragment) selectedFragment;
                     } else if (itemId == R.id.nav_vote) {
-                        selectedFragment = new VoteFragment();
+                        // Oy Ver sekmesi kaldırıldı, Elections sekmesine yönlendir
+                        bottomNavigationView.setSelectedItemId(R.id.nav_elections);
+                        return true;
                     } else if (itemId == R.id.nav_results) {
                         selectedFragment = new ResultsFragment();
                     } else if (itemId == R.id.nav_profile) {
@@ -86,9 +93,28 @@ public class MainActivity extends AppCompatActivity {
                         getSupportFragmentManager().beginTransaction()
                                 .replace(R.id.fragmentContainer, selectedFragment)
                                 .commit();
+
+                        // ElectionsFragment takibi
+                        if (selectedFragment instanceof ElectionsFragment) {
+                            currentElectionsFragment = (ElectionsFragment) selectedFragment;
+                        } else {
+                            currentElectionsFragment = null;
+                        }
                     }
 
                     return true;
                 }
             };
+
+    @Override
+    public void onBackPressed() {
+        // ElectionsFragment'ta oy verme ekranındaysa seçim listesine dön
+        if (currentElectionsFragment != null &&
+                currentElectionsFragment.onBackPressed()) {
+            return;
+        }
+
+        // Normal geri tuşu davranışı
+        super.onBackPressed();
+    }
 }

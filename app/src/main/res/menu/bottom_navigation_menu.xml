@@ -7,7 +7,8 @@
     <item
         android:id="@+id/nav_vote"
         android:icon="@drawable/ic_vote"
-        android:title="Oy Ver" />
+        android:title="Oy Ver"
+        android:visible="false"/>
     <item
         android:id="@+id/nav_results"
         android:icon="@drawable/ic_chart"

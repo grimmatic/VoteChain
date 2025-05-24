@@ -18,14 +18,15 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.votechain.R;
+import com.example.votechain.blockchain.BlockchainElectionManager;
 import com.example.votechain.model.User;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 
-
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class AdminFragment extends Fragment {
 
@@ -36,9 +37,12 @@ public class AdminFragment extends Fragment {
     private ProgressBar progressBar;
 
     // Admin işlemleri için butonlar
-    private Button btnBlockchainTest;
+    private Button btnSystemStatus;
     private Button btnCreateElection;
     private Button btnManageElections;
+    private TextView tvSystemStatus;
+
+    private BlockchainElectionManager electionManager;
 
     @Nullable
     @Override
@@ -49,11 +53,21 @@ public class AdminFragment extends Fragment {
         progressBar = view.findViewById(R.id.progressBar);
 
         // Admin işlemleri butonları
-        btnBlockchainTest = view.findViewById(R.id.btnBlockchainTest);
+        btnSystemStatus = view.findViewById(R.id.btnBlockchainTest);
         btnCreateElection = view.findViewById(R.id.btnCreateElection);
         btnManageElections = view.findViewById(R.id.btnManageElections);
 
+        // Sistem durumu için TextView ekle
+        ViewGroup parentView = (ViewGroup) view.findViewById(R.id.cardAdminActions);
+        tvSystemStatus = new TextView(getContext());
+        tvSystemStatus.setTextSize(12);
+        tvSystemStatus.setPadding(16, 8, 16, 8);
+        tvSystemStatus.setText("Sistem durumu kontrol ediliyor...");
+        ((ViewGroup) parentView.getChildAt(0)).addView(tvSystemStatus, 1);
+
         db = FirebaseFirestore.getInstance();
+        electionManager = BlockchainElectionManager.getInstance();
+
         userList = new ArrayList<>();
         adapter = new UserAdapter(userList, new UserAdapter.OnUserActionListener() {
             @Override
@@ -71,21 +85,20 @@ public class AdminFragment extends Fragment {
         recyclerView.setAdapter(adapter);
 
         setupAdminButtons();
+        checkSystemStatus();
         loadUsers();
 
         return view;
     }
 
     private void setupAdminButtons() {
-        // Blockchain Test butonu
-        btnBlockchainTest.setOnClickListener(v -> {
-            Intent intent = new Intent(getActivity(), TestActivity.class);
-            startActivity(intent);
-        });
+        // Sistem Durumu butonu
+        btnSystemStatus.setText("🔧 SİSTEM DURUMU");
+        btnSystemStatus.setOnClickListener(v -> checkSystemStatus());
 
-        // Seçim Oluştur butonu
+        // Seçim Oluştur butonu - Direkt AdminActivity'ye yönlendir
         btnCreateElection.setOnClickListener(v -> {
-            Intent intent = new Intent(getActivity(), AdminElectionActivity.class);
+            Intent intent = new Intent(getActivity(), AdminActivity.class);
             startActivity(intent);
         });
 
@@ -94,6 +107,77 @@ public class AdminFragment extends Fragment {
             Intent intent = new Intent(getActivity(), ManageElectionsActivity.class);
             startActivity(intent);
         });
+    }
+
+    private void checkSystemStatus() {
+        progressBar.setVisibility(View.VISIBLE);
+        tvSystemStatus.setText("🔄 Sistem durumu kontrol ediliyor...");
+
+        // Blockchain sistemini başlat/kontrol et
+        electionManager.initializeSystem(getContext())
+                .thenAccept(success -> {
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            progressBar.setVisibility(View.GONE);
+
+                            if (success) {
+                                Map<String, String> systemInfo = electionManager.getSystemInfo();
+                                showSystemInfo(systemInfo);
+                                btnCreateElection.setEnabled(true);
+                            } else {
+                                tvSystemStatus.setText("❌ Blockchain sistemi başlatılamadı");
+                                btnCreateElection.setEnabled(false);
+                                Toast.makeText(getContext(),
+                                        "Blockchain sistemi başlatılamadı. İnternet bağlantınızı kontrol edin.",
+                                        Toast.LENGTH_LONG).show();
+                            }
+                        });
+                    }
+                })
+                .exceptionally(e -> {
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            progressBar.setVisibility(View.GONE);
+                            tvSystemStatus.setText("❌ Sistem hatası: " + e.getMessage());
+                            btnCreateElection.setEnabled(false);
+                        });
+                    }
+                    return null;
+                });
+    }
+
+    private void showSystemInfo(Map<String, String> systemInfo) {
+        String walletAddress = systemInfo.get("walletAddress");
+        String contractAddress = systemInfo.get("contractAddress");
+        String totalElections = systemInfo.get("totalElections");
+
+        tvSystemStatus.setText("✅ VoteChain Sistemi Hazır!\n" +
+                "🔐 Cüzdan: " + truncateAddress(walletAddress) + "\n" +
+                "📜 Kontrat: " + truncateAddress(contractAddress) + "\n" +
+                "📊 Toplam Seçim: " + totalElections);
+
+        // Detaylı bilgi dialog'u göster
+        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        builder.setTitle("🏛️ VoteChain Sistem Durumu");
+        builder.setMessage("✅ Blockchain Sistemi: Aktif\n\n" +
+                "📋 Sistem Bilgileri:\n" +
+                "🔐 Ethereum Cüzdan: " + walletAddress + "\n\n" +
+                "📜 Akıllı Kontrat: " + contractAddress + "\n\n" +
+                "📊 Toplam Seçim: " + totalElections + "\n\n" +
+                "🚀 Sistem seçim oluşturmaya hazır!");
+        builder.setPositiveButton("Tamam", null);
+        builder.setNeutralButton("Seçim Oluştur", (dialog, which) -> {
+            Intent intent = new Intent(getActivity(), AdminActivity.class);
+            startActivity(intent);
+        });
+        builder.show();
+    }
+
+    private String truncateAddress(String address) {
+        if (address != null && address.length() > 10) {
+            return address.substring(0, 6) + "..." + address.substring(address.length() - 4);
+        }
+        return address != null ? address : "N/A";
     }
 
     private void loadUsers() {
@@ -201,6 +285,22 @@ public class AdminFragment extends Fragment {
                 })
                 .setNegativeButton("İptal", null)
                 .show();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // Fragment görünür olduğunda sistem durumunu kontrol et
+        if (electionManager.isSystemReady()) {
+            Map<String, String> systemInfo = electionManager.getSystemInfo();
+            showSystemInfoBrief(systemInfo);
+        }
+    }
+
+    private void showSystemInfoBrief(Map<String, String> systemInfo) {
+        tvSystemStatus.setText("✅ Sistem Hazır | Cüzdan: " +
+                truncateAddress(systemInfo.get("walletAddress")));
+        btnCreateElection.setEnabled(true);
     }
 
     // UserAdapter sınıfı aynı kalacak...

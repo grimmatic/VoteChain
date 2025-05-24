@@ -12,6 +12,7 @@ import com.example.votechain.R;
 import com.example.votechain.model.Election;
 import com.example.votechain.util.Utils;
 
+import java.util.Date;
 import java.util.List;
 
 public class ElectionAdapter extends RecyclerView.Adapter<ElectionAdapter.ElectionViewHolder> {
@@ -31,7 +32,7 @@ public class ElectionAdapter extends RecyclerView.Adapter<ElectionAdapter.Electi
     @NonNull
     @Override
     public ElectionViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_election, parent, false);
+        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_election_combined, parent, false);
         return new ElectionViewHolder(view);
     }
 
@@ -47,13 +48,14 @@ public class ElectionAdapter extends RecyclerView.Adapter<ElectionAdapter.Electi
     }
 
     public static class ElectionViewHolder extends RecyclerView.ViewHolder {
-        private TextView tvElectionName, tvElectionDescription, tvElectionDate;
+        private TextView tvElectionName, tvElectionDescription, tvElectionDate, tvElectionStatus;
 
         public ElectionViewHolder(@NonNull View itemView) {
             super(itemView);
             tvElectionName = itemView.findViewById(R.id.tvElectionName);
             tvElectionDescription = itemView.findViewById(R.id.tvElectionDescription);
             tvElectionDate = itemView.findViewById(R.id.tvElectionDate);
+            tvElectionStatus = itemView.findViewById(R.id.tvElectionStatus);
         }
 
         public void bind(final Election election, final OnElectionClickListener listener) {
@@ -62,6 +64,25 @@ public class ElectionAdapter extends RecyclerView.Adapter<ElectionAdapter.Electi
 
             String dateRange = Utils.formatDate(election.getStartDate()) + " - " + Utils.formatDate(election.getEndDate());
             tvElectionDate.setText(dateRange);
+
+            // Seçim durumunu belirle
+            Date now = new Date();
+            String status;
+            int statusColor;
+
+            if (election.getStartDate() != null && election.getStartDate().after(now)) {
+                status = "🕒 Yakında Başlayacak";
+                statusColor = R.color.colorAccent;
+            } else if (election.getEndDate() != null && election.getEndDate().before(now)) {
+                status = "⏰ Süresi Dolmuş";
+                statusColor = R.color.red;
+            } else {
+                status = "🗳️ Oy Verilebilir";
+                statusColor = R.color.green;
+            }
+
+            tvElectionStatus.setText(status);
+            tvElectionStatus.setTextColor(itemView.getContext().getColor(statusColor));
 
             itemView.setOnClickListener(v -> {
                 listener.onElectionClick(election);
