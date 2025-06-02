@@ -2,7 +2,6 @@ package com.example.votechain.ui;
 
 import android.os.Bundle;
 import android.util.Log;
-import android.view.View;
 import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
 import com.example.votechain.R;
@@ -12,7 +11,6 @@ import com.example.votechain.model.Election;
 import com.google.firebase.firestore.FirebaseFirestore;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
@@ -270,25 +268,8 @@ public class AdminActivity extends AppCompatActivity {
                 "📊 " + candidatesList.size() + " aday ile seçim başlatılıyor\n\n" +
                 "Son işlemler yapılıyor...");
 
-        // İlk olarak bazı test TC kimlik numaralarını ekle
-        addSampleTCIds();
     }
 
-    /**
-     * Test amaçlı TC kimlik numaralarını ekler
-     */
-    private void addSampleTCIds() {
-        final List<String> sampleTCIds = Arrays.asList(
-                "12345678901",
-                "12345678902",
-                "12345678903",
-                "12345678904",
-                "12345678905"
-        );
-
-        // Her TC ID için ayrı ayrı ekleme işlemi yap
-        addTCIdRecursively(sampleTCIds, 0);
-    }
 
     /**
      * TC ID'lerini sırayla ekler

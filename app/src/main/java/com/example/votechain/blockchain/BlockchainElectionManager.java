@@ -204,47 +204,55 @@ public class BlockchainElectionManager {
 
         Log.d(TAG, "Oy kullanılıyor: " + firebaseElectionId + " -> " + candidateId);
 
+        // BlockchainManager'ın sistem durumunu kontrol et
+        if (!blockchainManager.isSystemReady()) {
+            Log.e(TAG, "❌ Blockchain sistemi hazır değil!");
+            future.completeExceptionally(new Exception("Blockchain sistemi hazır değil"));
+            return future;
+        }
+
         // Blockchain ID'lerini al
         BigInteger blockchainElectionId = firebaseToBlockchainIds.get(firebaseElectionId);
 
-        if (blockchainElectionId != null) {
-            // Firebase'den candidate'ın blockchain ID'sini al
-            db.collection("elections").document(firebaseElectionId)
-                    .collection("candidates").document(candidateId)
-                    .get()
-                    .addOnSuccessListener(documentSnapshot -> {
-                        if (documentSnapshot.exists()) {
-                            String blockchainCandidateIdStr = documentSnapshot.getString("blockchainCandidateId");
-
-                            if (blockchainCandidateIdStr != null) {
-                                BigInteger blockchainCandidateId = new BigInteger(blockchainCandidateIdStr);
-
-                                // Blockchain'de oy kullan
-                                blockchainManager.vote(blockchainElectionId, blockchainCandidateId, tcKimlikNo)
-                                        .thenAccept(transactionHash -> {
-                                            Log.d(TAG, "Blockchain'de oy kullanıldı: " + transactionHash);
-                                            future.complete(transactionHash);
-                                        })
-                                        .exceptionally(e -> {
-                                            Log.e(TAG, "Blockchain'de oy kullanılamadı", e);
-                                            future.completeExceptionally(e);
-                                            return null;
-                                        });
-                            } else {
-                                future.completeExceptionally(new Exception("Aday blockchain ID'si bulunamadı"));
-                            }
-                        } else {
-                            future.completeExceptionally(new Exception("Aday bulunamadı"));
-                        }
-                    })
-                    .addOnFailureListener(future::completeExceptionally);
-        } else {
+        if (blockchainElectionId == null) {
+            Log.e(TAG, "❌ Blockchain seçim ID'si bulunamadı!");
             future.completeExceptionally(new Exception("Seçim blockchain ID'si bulunamadı"));
+            return future;
         }
+
+        // Firebase'den candidate'ın blockchain ID'sini al
+        db.collection("elections").document(firebaseElectionId)
+                .collection("candidates").document(candidateId)
+                .get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    if (documentSnapshot.exists()) {
+                        String blockchainCandidateIdStr = documentSnapshot.getString("blockchainCandidateId");
+
+                        if (blockchainCandidateIdStr != null) {
+                            BigInteger blockchainCandidateId = new BigInteger(blockchainCandidateIdStr);
+
+                            // Blockchain'de oy kullan
+                            blockchainManager.vote(blockchainElectionId, blockchainCandidateId, tcKimlikNo)
+                                    .thenAccept(transactionHash -> {
+                                        Log.d(TAG, "✅ Blockchain'de oy kullanıldı: " + transactionHash);
+                                        future.complete(transactionHash);
+                                    })
+                                    .exceptionally(e -> {
+                                        Log.e(TAG, "❌ Blockchain'de oy kullanılamadı", e);
+                                        future.completeExceptionally(e);
+                                        return null;
+                                    });
+                        } else {
+                            future.completeExceptionally(new Exception("Aday blockchain ID'si bulunamadı"));
+                        }
+                    } else {
+                        future.completeExceptionally(new Exception("Aday bulunamadı"));
+                    }
+                })
+                .addOnFailureListener(future::completeExceptionally);
 
         return future;
     }
-
     /**
      * Seçim sonuçlarını blockchain'den getirir
      */
@@ -263,9 +271,19 @@ public class BlockchainElectionManager {
     /**
      * Sistem durumunu kontrol eder
      */
+    /**
+     * Sistem durumunu kontrol eder
+     */
     public boolean isSystemReady() {
-        return blockchainManager.getWalletAddress() != null &&
-                blockchainManager.getContractAddress() != null;
+        // BlockchainManager'ın durumunu kontrol et
+        boolean blockchainReady = blockchainManager.isSystemReady();
+        boolean mappingReady = (firebaseToBlockchainIds != null);
+
+        Log.d(TAG, "📊 BlockchainElectionManager Sistem Durumu:");
+        Log.d(TAG, "🔗 BlockchainManager: " + (blockchainReady ? "✅" : "❌"));
+        Log.d(TAG, "🗺️ ID Mapping: " + (mappingReady ? "✅" : "❌"));
+
+        return blockchainReady && mappingReady;
     }
 
     /**
