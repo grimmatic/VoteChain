@@ -498,9 +498,6 @@ public class ElectionsFragment extends Fragment {
 
                                 Toast.makeText(getContext(), message, Toast.LENGTH_LONG).show();
 
-                                // UI'ı güncelle - oy verme durumunu göster
-                                checkIfUserAlreadyVoted(currentElection.getId());
-
                                 // 2 saniye sonra seçim listesine dön
                                 new android.os.Handler().postDelayed(() -> {
                                     if (getActivity() != null && !isDetached()) {

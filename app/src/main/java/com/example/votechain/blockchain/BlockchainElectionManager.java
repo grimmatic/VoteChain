@@ -324,4 +324,79 @@ public class BlockchainElectionManager {
 
         return future;
     }
+    /**
+     * Özel Unix timestamp'ler ile seçim oluşturur
+     * Admin'in seçtiği tarih/saatleri timezone düzeltmesi ile kullanır
+     */
+    public CompletableFuture<String> createElectionWithCustomTimes(Election election, long startTimeUnix, long endTimeUnix) {
+        CompletableFuture<String> future = new CompletableFuture<>();
+
+        Log.d(TAG, "🗳️ Özel zamanlarla seçim oluşturuluyor: " + election.getName());
+        Log.d(TAG, "⏰ Start Unix: " + startTimeUnix);
+        Log.d(TAG, "⏰ End Unix: " + endTimeUnix);
+
+        // 1. Önce Firebase'de oluştur
+        db.collection("elections")
+                .add(election)
+                .addOnSuccessListener(documentReference -> {
+                    String firebaseElectionId = documentReference.getId();
+                    Log.d(TAG, "✅ Firebase'de oluşturuldu: " + firebaseElectionId);
+
+                    // 2. Sonra blockchain'de özel zamanlarla oluştur
+                    blockchainManager.createElectionWithSpecificTimes(election, startTimeUnix, endTimeUnix)
+                            .thenAccept(transactionHash -> {
+                                Log.d(TAG, "✅ Blockchain'de oluşturuldu: " + transactionHash);
+
+                                // 3. ID eşleştirmesini kaydet
+                                firebaseToBlockchainIds.put(firebaseElectionId, nextElectionId);
+
+                                // 4. Firebase'de blockchain bilgilerini güncelle
+                                Map<String, Object> blockchainInfo = new HashMap<>();
+                                blockchainInfo.put("blockchainElectionId", nextElectionId.toString());
+                                blockchainInfo.put("transactionHash", transactionHash);
+                                blockchainInfo.put("blockchainEnabled", true);
+                                blockchainInfo.put("startTimeUnix", startTimeUnix);
+                                blockchainInfo.put("endTimeUnix", endTimeUnix);
+                                blockchainInfo.put("timezoneFixed", true);
+
+                                documentReference.update(blockchainInfo)
+                                        .addOnSuccessListener(aVoid -> {
+                                            Log.d(TAG, "✅ Seçim özel zamanlarla başarıyla oluşturuldu!");
+                                            Log.d(TAG, "🆔 Firebase ID: " + firebaseElectionId);
+                                            Log.d(TAG, "🔗 Blockchain ID: " + nextElectionId);
+                                            Log.d(TAG, "📅 Unix Start: " + startTimeUnix);
+                                            Log.d(TAG, "📅 Unix End: " + endTimeUnix);
+                                            Log.d(TAG, "🔗 TX Hash: " + transactionHash);
+
+                                            nextElectionId = nextElectionId.add(BigInteger.ONE);
+                                            future.complete(firebaseElectionId);
+                                        })
+                                        .addOnFailureListener(e -> {
+                                            Log.w(TAG, "⚠️ Blockchain bilgileri Firebase'e kaydedilemedi", e);
+                                            // Yine de başarılı say, seçim oluşturuldu
+                                            nextElectionId = nextElectionId.add(BigInteger.ONE);
+                                            future.complete(firebaseElectionId);
+                                        });
+                            })
+                            .exceptionally(e -> {
+                                Log.e(TAG, "❌ Blockchain seçim oluşturulamadı", e);
+
+                                // Blockchain başarısız olsa da Firebase'de oluşturuldu
+                                Map<String, Object> blockchainInfo = new HashMap<>();
+                                blockchainInfo.put("blockchainEnabled", false);
+                                blockchainInfo.put("blockchainError", e.getMessage());
+                                blockchainInfo.put("fallbackToFirebase", true);
+
+                                documentReference.update(blockchainInfo);
+                                future.complete(firebaseElectionId);
+                                return null;
+                            });
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "❌ Firebase seçim oluşturulamadı", e);
+                    future.completeExceptionally(e);
+                });
+
+        return future;
+    }
 }

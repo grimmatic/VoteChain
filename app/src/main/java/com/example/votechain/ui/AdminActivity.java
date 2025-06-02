@@ -15,6 +15,7 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TimeZone;
 
 
 public class AdminActivity extends AppCompatActivity {
@@ -158,18 +159,45 @@ public class AdminActivity extends AppCompatActivity {
             return;
         }
 
+        // Timezone düzeltmesi yap
+        long startTimeUnix = convertToBlockchainTime(startCalendar);
+        long endTimeUnix = convertToBlockchainTime(endCalendar);
+        long currentTimeUnix = System.currentTimeMillis() / 1000;
+
+        Log.d(TAG, "🕐 ZAMAN DEBUG (Düzeltilmiş):");
+        Log.d(TAG, "📅 Admin Seçimi - Başlangıç: " + formatDateTime(startCalendar));
+        Log.d(TAG, "📅 Admin Seçimi - Bitiş: " + formatDateTime(endCalendar));
+        Log.d(TAG, "📅 Current Unix: " + currentTimeUnix);
+        Log.d(TAG, "📅 Start Unix (Düzeltilmiş): " + startTimeUnix);
+        Log.d(TAG, "📅 End Unix (Düzeltilmiş): " + endTimeUnix);
+        Log.d(TAG, "🌍 Timezone: " + TimeZone.getDefault().getID());
+        Log.d(TAG, "⏰ UTC Offset: " + (TimeZone.getDefault().getOffset(System.currentTimeMillis()) / (1000 * 60 * 60)) + " saat");
+
+
+        boolean isValidTime = (startTimeUnix <= currentTimeUnix) || (startTimeUnix > currentTimeUnix && startTimeUnix < endTimeUnix);
+        Log.d(TAG, "✅ Zaman geçerli mi: " + isValidTime);
+
+        if (endTimeUnix <= currentTimeUnix) {
+            Toast.makeText(this, "⚠️ Uyarı: Bitiş zamanı geçmişte! Seçim hemen bitecek.", Toast.LENGTH_LONG).show();
+        }
+
         updateStatus("🗳️ Seçim oluşturuluyor...\n" +
                 "📋 Ad: " + name + "\n" +
                 "⏰ Başlangıç: " + formatDateTime(startCalendar) + "\n" +
-                "🏁 Bitiş: " + formatDateTime(endCalendar) + "\n\n" +
+                "🏁 Bitiş: " + formatDateTime(endCalendar) + "\n" +
+                "🔢 Start Unix: " + startTimeUnix + "\n" +
+                "🔢 End Unix: " + endTimeUnix + "\n" +
+                "🌍 Timezone Düzeltmesi Uygulandı\n\n" +
                 "Blockchain işlemi devam ediyor...");
+
 
         Election election = new Election(name, description,
                 startCalendar.getTime(),
                 endCalendar.getTime(),
-                false); // Başlangıçta pasif
+                false);
 
-        electionManager.createElection(election)
+
+        electionManager.createElectionWithCustomTimes(election, startTimeUnix, endTimeUnix)
                 .thenAccept(electionId -> {
                     runOnUiThread(() -> {
                         currentElectionId = electionId;
@@ -177,7 +205,8 @@ public class AdminActivity extends AppCompatActivity {
                         updateStatus("✅ Seçim başarıyla oluşturuldu!\n\n" +
                                 "📋 Seçim: " + name + "\n" +
                                 "🆔 ID: " + electionId + "\n" +
-                                "🔗 Blockchain: Entegre edildi\n\n" +
+                                "🔗 Blockchain: Entegre edildi\n" +
+                                "⏰ Zamanlar düzeltildi\n\n" +
                                 "Şimdi adayları ekleyebilirsiniz!");
 
                         // UI güncellemeleri
@@ -196,6 +225,37 @@ public class AdminActivity extends AppCompatActivity {
                     });
                     return null;
                 });
+    }
+    /**
+     * Calendar'ı blockchain için doğru Unix timestamp'e çevirir
+     * Timezone farkını düzeltir
+     */
+    private long convertToBlockchainTime(Calendar calendar) {
+        // Yöntem 1: UTC'ye çevir
+        long javaTimeUnix = calendar.getTimeInMillis() / 1000;
+
+        // Timezone offset'ini hesapla (milisaniye cinsinden)
+        TimeZone timeZone = TimeZone.getDefault();
+        int offsetMs = timeZone.getOffset(calendar.getTimeInMillis());
+
+        // UTC timestamp hesapla
+        long utcTimeUnix = javaTimeUnix - (offsetMs / 1000);
+
+        Log.d(TAG, "🔄 Timezone Dönüşümü:");
+        Log.d(TAG, "  📅 Yerel Zaman Unix: " + javaTimeUnix);
+        Log.d(TAG, "  🌍 Timezone Offset: " + (offsetMs / (1000 * 60 * 60)) + " saat");
+        Log.d(TAG, "  🌐 UTC Unix: " + utcTimeUnix);
+        Log.d(TAG, "  ⏰ Fark: " + (javaTimeUnix - utcTimeUnix) + " saniye");
+
+        return utcTimeUnix;
+    }
+
+    /**
+     * Tarihi kullanıcı dostu formatta gösterir
+     */
+    private String formatDateTime(Calendar calendar) {
+        SimpleDateFormat formatter = new SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault());
+        return formatter.format(calendar.getTime());
     }
 
     /**
@@ -268,8 +328,9 @@ public class AdminActivity extends AppCompatActivity {
                 "📊 " + candidatesList.size() + " aday ile seçim başlatılıyor\n\n" +
                 "Son işlemler yapılıyor...");
 
-    }
 
+        activateElectionInFirebase();
+    }
 
     /**
      * TC ID'lerini sırayla ekler
@@ -363,8 +424,5 @@ public class AdminActivity extends AppCompatActivity {
     /**
      * Tarih ve saati formatlar
      */
-    private String formatDateTime(Calendar calendar) {
-        SimpleDateFormat formatter = new SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault());
-        return formatter.format(calendar.getTime());
-    }
+
 }

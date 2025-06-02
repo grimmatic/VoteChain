@@ -559,4 +559,116 @@ public class BlockchainManager {
     public String getContractAddress() {
         return contractAddress;
     }
+    /**
+     * Belirtilen Unix timestamp'ler ile seçim oluşturur
+     * Timezone düzeltmesi yapılmış zamanları kullanır
+     */
+    public CompletableFuture<String> createElectionWithSpecificTimes(Election election, long startTimeUnix, long endTimeUnix) {
+        CompletableFuture<String> future = new CompletableFuture<>();
+
+        try {
+            Log.d(TAG, "🕐 BLOCKCHAIN SEÇİM OLUŞTURMA - ÖZELLEŞTİRİLMİŞ:");
+            Log.d(TAG, "📋 Seçim Adı: " + election.getName());
+            Log.d(TAG, "📅 Start Unix (Düzeltilmiş): " + startTimeUnix);
+            Log.d(TAG, "📅 End Unix (Düzeltilmiş): " + endTimeUnix);
+
+            // Şimdiki blockchain zamanını kontrol et
+            getCurrentBlockchainTime()
+                    .thenAccept(blockchainCurrentTime -> {
+                        Log.d(TAG, "⛓️ Blockchain Şimdiki Zaman: " + blockchainCurrentTime);
+                        Log.d(TAG, "📊 Start - Current: " + (startTimeUnix - blockchainCurrentTime) + " saniye");
+                        Log.d(TAG, "📊 End - Current: " + (endTimeUnix - blockchainCurrentTime) + " saniye");
+
+                        // Zaman kontrolü
+                        if (endTimeUnix <= blockchainCurrentTime) {
+                            Log.w(TAG, "⚠️ UYARI: Seçim süresi blockchain zamanına göre dolmuş!");
+                        } else if (startTimeUnix <= blockchainCurrentTime && blockchainCurrentTime < endTimeUnix) {
+                            Log.i(TAG, "✅ Seçim şu anda aktif sürede!");
+                        } else if (startTimeUnix > blockchainCurrentTime) {
+                            Log.i(TAG, "🕐 Seçim gelecekte başlayacak: " +
+                                    ((startTimeUnix - blockchainCurrentTime) / 60) + " dakika sonra");
+                        }
+
+                        // Blockchain'de oluştur
+                        votingContract.createElection(
+                                        election.getName(),
+                                        election.getDescription(),
+                                        BigInteger.valueOf(startTimeUnix),
+                                        BigInteger.valueOf(endTimeUnix)
+                                ).sendAsync()
+                                .thenAccept(receipt -> {
+                                    String txHash = receipt.getTransactionHash();
+                                    Log.d(TAG, "✅ Seçim blockchain'de özel zamanlarla oluşturuldu!");
+                                    Log.d(TAG, "🔗 Transaction Hash: " + txHash);
+                                    Log.d(TAG, "⛽ Gas Used: " + receipt.getGasUsed());
+                                    future.complete(txHash);
+                                })
+                                .exceptionally(e -> {
+                                    Log.e(TAG, "❌ Blockchain seçim oluşturma hatası", e);
+                                    future.completeExceptionally(e);
+                                    return null;
+                                });
+                    })
+                    .exceptionally(e -> {
+                        Log.w(TAG, "⚠️ Blockchain zamanı alınamadı, direkt oluşturulmaya devam ediliyor");
+
+                        // Fallback: Blockchain zamanı alamasak da devam et
+                        try {
+                            votingContract.createElection(
+                                            election.getName(),
+                                            election.getDescription(),
+                                            BigInteger.valueOf(startTimeUnix),
+                                            BigInteger.valueOf(endTimeUnix)
+                                    ).sendAsync()
+                                    .thenAccept(receipt -> {
+                                        String txHash = receipt.getTransactionHash();
+                                        Log.d(TAG, "✅ Seçim fallback ile oluşturuldu: " + txHash);
+                                        future.complete(txHash);
+                                    })
+                                    .exceptionally(ex -> {
+                                        Log.e(TAG, "❌ Fallback seçim oluşturma hatası", ex);
+                                        future.completeExceptionally(ex);
+                                        return null;
+                                    });
+                        } catch (Exception ex) {
+                            future.completeExceptionally(ex);
+                        }
+                        return null;
+                    });
+
+        } catch (Exception e) {
+            Log.e(TAG, "❌ createElectionWithSpecificTimes genel hatası", e);
+            future.completeExceptionally(e);
+        }
+
+        return future;
+    }
+
+    /**
+     * Mevcut blockchain zamanını alır
+     */
+    private CompletableFuture<Long> getCurrentBlockchainTime() {
+        CompletableFuture<Long> future = new CompletableFuture<>();
+
+        try {
+            web3j.ethGetBlockByNumber(DefaultBlockParameter.valueOf("latest"), false)
+                    .sendAsync()
+                    .thenAccept(block -> {
+                        if (block.getBlock() != null) {
+                            long blockTime = block.getBlock().getTimestamp().longValue();
+                            future.complete(blockTime);
+                        } else {
+                            future.completeExceptionally(new Exception("Latest block alınamadı"));
+                        }
+                    })
+                    .exceptionally(e -> {
+                        future.completeExceptionally(e);
+                        return null;
+                    });
+        } catch (Exception e) {
+            future.completeExceptionally(e);
+        }
+
+        return future;
+    }
 }
