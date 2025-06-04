@@ -3,6 +3,7 @@ package com.example.votechain.ui;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -23,8 +24,11 @@ import com.example.votechain.model.User;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.functions.FirebaseFunctions;
+import com.google.firebase.functions.FirebaseFunctionsException;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -227,31 +231,74 @@ public class AdminFragment extends Fragment {
         }
 
         new AlertDialog.Builder(getContext())
-                .setTitle("Kullanıcıyı Sil")
-                .setMessage(user.getAd() + " " + user.getSoyad() + " kullanıcısını silmek istediğinize emin misiniz?")
-                .setPositiveButton("Evet", (dialog, which) -> {
-                    progressBar.setVisibility(View.VISIBLE);
-
-                    db.collection("users").document(user.getUserId())
-                            .delete()
-                            .addOnSuccessListener(aVoid -> {
-                                progressBar.setVisibility(View.GONE);
-                                Toast.makeText(getContext(),
-                                        "Kullanıcı başarıyla silindi",
-                                        Toast.LENGTH_SHORT).show();
-                                loadUsers();
-                            })
-                            .addOnFailureListener(e -> {
-                                progressBar.setVisibility(View.GONE);
-                                if (getContext() != null) {
-                                    Toast.makeText(getContext(),
-                                            "Kullanıcı silinemedi: " + e.getMessage(),
-                                            Toast.LENGTH_SHORT).show();
-                                }
-                            });
+                .setTitle("⚠️ Kullanıcıyı Tamamen Sil")
+                .setMessage(user.getAd() + " " + user.getSoyad() + " kullanıcısını tamamen silmek istediğinize emin misiniz?\n\n" +
+                        "🔥 Bu işlem:\n" +
+                        "• Firebase Authentication'dan\n" +
+                        "• Firestore veritabanından\n" +
+                        "• Tüm oy kayıtlarından\n" +
+                        "kullanıcıyı kalıcı olarak kaldıracaktır.\n\n" +
+                        "❌ Bu işlem GERİ ALINAMAZ!")
+                .setPositiveButton("Evet, Tamamen Sil", (dialog, which) -> {
+                    deleteUserWithCloudFunction(user);
                 })
                 .setNegativeButton("İptal", null)
                 .show();
+    }
+
+    private void deleteUserWithCloudFunction(User user) {
+        progressBar.setVisibility(View.VISIBLE);
+
+        // Cloud Function çağır
+        FirebaseFunctions functions = FirebaseFunctions.getInstance();
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("userId", user.getUserId());
+
+        Log.d("AdminFragment", "Cloud Function çağrılıyor: deleteUser");
+        Log.d("AdminFragment", "User ID: " + user.getUserId());
+
+        functions.getHttpsCallable("deleteUser")
+                .call(data)
+                .addOnSuccessListener(result -> {
+                    progressBar.setVisibility(View.GONE);
+
+                    Log.d("AdminFragment", "Cloud Function başarılı: " + result.getData());
+
+                    Map<String, Object> resultData = (Map<String, Object>) result.getData();
+                    String message = (String) resultData.get("message");
+                    Object deletedVotesObj = resultData.get("deletedVotes");
+
+                    String successMessage = "✅ " + message;
+                    if (deletedVotesObj != null) {
+
+                        Number deletedVotesNumber = (Number) deletedVotesObj;
+                        int deletedVotes = deletedVotesNumber.intValue();
+
+                        if (deletedVotes > 0) {
+                            successMessage += "\n🗳️ " + deletedVotes + " oy kaydı da silindi";
+                        }
+                    }
+
+                    Toast.makeText(getContext(), successMessage, Toast.LENGTH_LONG).show();
+                    loadUsers(); // Listeyi yenile
+                })
+                .addOnFailureListener(e -> {
+                    progressBar.setVisibility(View.GONE);
+
+                    String errorMessage = "❌ Kullanıcı silinemedi";
+                    if (e instanceof FirebaseFunctionsException) {
+                        FirebaseFunctionsException ffe = (FirebaseFunctionsException) e;
+                        errorMessage += ":\n" + ffe.getMessage();
+
+                        Log.e("AdminFragment", "Cloud Function hatası: " + ffe.getCode() + " - " + ffe.getMessage());
+                    } else {
+                        errorMessage += ":\n" + e.getMessage();
+                    }
+
+                    Log.e("AdminFragment", "Kullanıcı silme hatası", e);
+                    Toast.makeText(getContext(), errorMessage, Toast.LENGTH_LONG).show();
+                });
     }
 
     private void makeAdmin(User user) {
