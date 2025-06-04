@@ -202,23 +202,92 @@ public class BlockchainElectionManager {
     public CompletableFuture<String> castVote(String firebaseElectionId, String candidateId, String tcKimlikNo) {
         CompletableFuture<String> future = new CompletableFuture<>();
 
-        Log.d(TAG, "Oy kullanılıyor: " + firebaseElectionId + " -> " + candidateId);
+        Log.d(TAG, "🔍 CAST VOTE DEBUG:");
+        Log.d(TAG, "Firebase Election ID: " + firebaseElectionId);
+        Log.d(TAG, "Available mappings: " + firebaseToBlockchainIds.toString());
+        Log.d(TAG, "Mapping size: " + firebaseToBlockchainIds.size());
 
-        // BlockchainManager'ın sistem durumunu kontrol et
+        // Blockchain manager hazır mı kontrol et
         if (!blockchainManager.isSystemReady()) {
-            Log.e(TAG, "❌ Blockchain sistemi hazır değil!");
-            future.completeExceptionally(new Exception("Blockchain sistemi hazır değil"));
+            Log.w(TAG, "⚠️ Blockchain sistemi hazır değil, yeniden başlatılıyor...");
+
+            // Sistemi yeniden başlat
+            initializeSystem(null) // Context null olabilir, BlockchainManager'da handle edin
+                    .thenAccept(success -> {
+                        if (success) {
+                            Log.d(TAG, "✅ Blockchain sistemi yeniden başlatıldı");
+                            continueWithVote(firebaseElectionId, candidateId, tcKimlikNo, future);
+                        } else {
+                            future.completeExceptionally(new Exception("Blockchain sistemi başlatılamadı"));
+                        }
+                    });
             return future;
         }
 
+        continueWithVote(firebaseElectionId, candidateId, tcKimlikNo, future);
+        return future;
+    }
+
+    private void continueWithVote(String firebaseElectionId, String candidateId, String tcKimlikNo, CompletableFuture<String> future) {
         // Blockchain ID'lerini al
         BigInteger blockchainElectionId = firebaseToBlockchainIds.get(firebaseElectionId);
 
         if (blockchainElectionId == null) {
             Log.e(TAG, "❌ Blockchain seçim ID'si bulunamadı!");
-            future.completeExceptionally(new Exception("Seçim blockchain ID'si bulunamadı"));
-            return future;
+
+            // Firebase'den blockchain ID'sini almaya çalış
+            loadBlockchainIdFromFirebase(firebaseElectionId)
+                    .thenAccept(blockchainId -> {
+                        if (blockchainId != null) {
+                            firebaseToBlockchainIds.put(firebaseElectionId, blockchainId);
+                            continueVoteProcess(firebaseElectionId, candidateId, tcKimlikNo, blockchainId, future);
+                        } else {
+                            future.completeExceptionally(new Exception("Seçim blockchain ID'si bulunamadı"));
+                        }
+                    });
+            return;
         }
+
+        continueVoteProcess(firebaseElectionId, candidateId, tcKimlikNo, blockchainElectionId, future);
+    }
+
+
+    private CompletableFuture<BigInteger> loadBlockchainIdFromFirebase(String firebaseElectionId) {
+        CompletableFuture<BigInteger> future = new CompletableFuture<>();
+
+        db.collection("elections").document(firebaseElectionId)
+                .get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    if (documentSnapshot.exists()) {
+                        String blockchainIdStr = documentSnapshot.getString("blockchainElectionId");
+                        if (blockchainIdStr != null && !blockchainIdStr.isEmpty()) {
+                            try {
+                                BigInteger blockchainId = new BigInteger(blockchainIdStr);
+                                Log.d(TAG, "✅ Firebase'den blockchain ID alındı: " + blockchainId);
+                                future.complete(blockchainId);
+                            } catch (NumberFormatException e) {
+                                Log.e(TAG, "Blockchain ID parse hatası: " + e.getMessage());
+                                future.complete(null);
+                            }
+                        } else {
+                            Log.w(TAG, "Firebase'de blockchain ID bulunamadı");
+                            future.complete(null);
+                        }
+                    } else {
+                        future.complete(null);
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Firebase seçim bilgisi alınamadı", e);
+                    future.complete(null);
+                });
+
+        return future;
+    }
+
+    private void continueVoteProcess(String firebaseElectionId, String candidateId, String tcKimlikNo,
+                                     BigInteger blockchainElectionId, CompletableFuture<String> future) {
+        Log.d(TAG, "✅ Blockchain Election ID bulundu: " + blockchainElectionId);
 
         // Firebase'den candidate'ın blockchain ID'sini al
         db.collection("elections").document(firebaseElectionId)
@@ -250,8 +319,6 @@ public class BlockchainElectionManager {
                     }
                 })
                 .addOnFailureListener(future::completeExceptionally);
-
-        return future;
     }
     /**
      * Seçim sonuçlarını blockchain'den getirir

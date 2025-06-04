@@ -6,7 +6,8 @@ public class Candidate {
     private String name;
     private String party;
     private int voteCount;
-
+    private String blockchainCandidateId;
+    private String transactionHash;
     public Candidate() {
 
     }
@@ -54,7 +55,21 @@ public class Candidate {
     public int getVoteCount() {
         return voteCount;
     }
+    public String getBlockchainCandidateId() {
+        return blockchainCandidateId;
+    }
 
+    public void setBlockchainCandidateId(String blockchainCandidateId) {
+        this.blockchainCandidateId = blockchainCandidateId;
+    }
+
+    public String getTransactionHash() {
+        return transactionHash;
+    }
+
+    public void setTransactionHash(String transactionHash) {
+        this.transactionHash = transactionHash;
+    }
     public void setVoteCount(int voteCount) {
         this.voteCount = voteCount;
     }

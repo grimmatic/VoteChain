@@ -112,7 +112,8 @@ public class BlockchainManager {
 
             if (web3j == null) {
                 Log.e(TAG, "❌ Web3j null, kontrat başlatılamıyor");
-                return;
+                // Web3j'yi yeniden başlat
+                web3j = Web3j.build(new HttpService(INFURA_URL));
             }
 
             ContractGasProvider gasProvider = new DefaultGasProvider();
@@ -121,36 +122,48 @@ public class BlockchainManager {
             Log.d(TAG, "📜 Kontrat adresi: " + contractAddress);
             Log.d(TAG, "🔑 Cüzdan adresi: " + credentials.getAddress());
 
-            votingContract = VotingContract.load(
-                    contractAddress,
-                    web3j,
-                    credentials,
-                    gasProvider
-            );
+            // SYNC YÜKLEME DENEYİN
+            try {
+                votingContract = VotingContract.load(
+                        contractAddress,
+                        web3j,
+                        credentials,
+                        gasProvider
+                );
 
-            if (votingContract != null) {
-                Log.d(TAG, "✅ Kontrat başarıyla yüklendi: " + contractAddress);
+                if (votingContract != null) {
+                    Log.d(TAG, "✅ Kontrat başarıyla yüklendi: " + contractAddress);
 
-                // Kontrat çalışıyor mu test et
-                try {
-                    votingContract.electionCount().sendAsync()
-                            .thenAccept(count -> {
-                                Log.d(TAG, "🔍 Kontrat test başarılı, seçim sayısı: " + count);
-                            })
-                            .exceptionally(e -> {
-                                Log.w(TAG, "⚠️ Kontrat test başarısız: " + e.getMessage());
-                                return null;
-                            });
-                } catch (Exception e) {
-                    Log.w(TAG, "⚠️ Kontrat test yapılamadı: " + e.getMessage());
+                    // Hemen test et
+                    testContract();
+                } else {
+                    Log.e(TAG, "❌ Kontrat yüklenemedi!");
                 }
-            } else {
-                Log.e(TAG, "❌ Kontrat yüklenemedi!");
+            } catch (Exception e) {
+                Log.e(TAG, "❌ Kontrat yükleme exception", e);
+                votingContract = null;
             }
 
         } catch (Exception e) {
             Log.e(TAG, "❌ Kontrat başlatma hatası", e);
             votingContract = null;
+        }
+    }
+
+    private void testContract() {
+        try {
+            if (votingContract != null) {
+                votingContract.electionCount().sendAsync()
+                        .thenAccept(count -> {
+                            Log.d(TAG, "✅ Kontrat test başarılı, seçim sayısı: " + count);
+                        })
+                        .exceptionally(e -> {
+                            Log.w(TAG, "⚠️ Kontrat test başarısız: " + e.getMessage());
+                            return null;
+                        });
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "⚠️ Kontrat test yapılamadı: " + e.getMessage());
         }
     }
     /**
@@ -389,40 +402,34 @@ public class BlockchainManager {
             Log.d(TAG, "👤 Candidate ID: " + candidateId);
             Log.d(TAG, "🆔 TC Kimlik: " + tcKimlikNo);
 
-            // TC Kimlik hash kontrolü ekle
+
+            if (votingContract == null) {
+                Log.e(TAG, "❌ VOTING CONTRACT NULL! Kontrat başlatılmamış.");
+
+                // Kontratı yeniden başlatmaya çalış
+                Log.d(TAG, "🔄 Kontrat yeniden başlatılıyor...");
+                initializeContract();
+
+                // Kısa bir süre bekle
+                new android.os.Handler().postDelayed(() -> {
+                    if (votingContract != null) {
+                        Log.d(TAG, "✅ Kontrat başarıyla yeniden başlatıldı");
+                        performVoteAfterContractInit(electionId, candidateId, tcKimlikNo, future);
+                    } else {
+                        Log.e(TAG, "❌ Kontrat yeniden başlatılamadı!");
+                        future.completeExceptionally(new Exception("Blockchain kontrat bağlantısı kurulamadı"));
+                    }
+                }, 1000);
+
+                return future;
+            }
+
+            // TC Kimlik hash kontrolü
             String tcIdHash = Hash.sha3String(tcKimlikNo);
             Log.d(TAG, "🔐 TC Hash: " + tcIdHash);
 
-            // Önce TC ID'nin valid olup olmadığını kontrol et
-            votingContract.isValidTCId(tcIdHash).sendAsync()
-                    .thenAccept(isValid -> {
-                        Log.d(TAG, "🔍 TC ID Valid Check: " + isValid);
 
-                        if (!isValid) {
-                            Log.w(TAG, "⚠️ TC ID geçerli değil, önce ekleniyor...");
-                            // TC ID'yi ekle, sonra oy ver
-                            votingContract.addValidTCId(tcIdHash).sendAsync()
-                                    .thenAccept(addReceipt -> {
-                                        Log.d(TAG, "✅ TC ID eklendi: " + addReceipt.getTransactionHash());
-                                        // Şimdi oy ver
-                                        performVote(electionId, candidateId, tcIdHash, future);
-                                    })
-                                    .exceptionally(e -> {
-                                        Log.e(TAG, "❌ TC ID eklenemedi: " + e.getMessage());
-                                        future.completeExceptionally(e);
-                                        return null;
-                                    });
-                        } else {
-                            // Direkt oy ver
-                            performVote(electionId, candidateId, tcIdHash, future);
-                        }
-                    })
-                    .exceptionally(e -> {
-                        Log.e(TAG, "❌ TC ID kontrol hatası: " + e.getMessage());
-                        // Yine de oy vermeyi dene
-                        performVote(electionId, candidateId, tcIdHash, future);
-                        return null;
-                    });
+            performVoteAfterContractInit(electionId, candidateId, tcKimlikNo, future);
 
         } catch (Exception e) {
             Log.e(TAG, "❌ OY VERME HAZIRLIK HATASI!", e);
@@ -430,6 +437,42 @@ public class BlockchainManager {
         }
 
         return future;
+    }
+
+    // Yeni helper metod
+    private void performVoteAfterContractInit(BigInteger electionId, BigInteger candidateId, String tcKimlikNo, CompletableFuture<String> future) {
+        String tcIdHash = Hash.sha3String(tcKimlikNo);
+
+        // Önce TC ID'nin valid olup olmadığını kontrol et
+        votingContract.isValidTCId(tcIdHash).sendAsync()
+                .thenAccept(isValid -> {
+                    Log.d(TAG, "🔍 TC ID Valid Check: " + isValid);
+
+                    if (!isValid) {
+                        Log.w(TAG, "⚠️ TC ID geçerli değil, önce ekleniyor...");
+                        // TC ID'yi ekle, sonra oy ver
+                        votingContract.addValidTCId(tcIdHash).sendAsync()
+                                .thenAccept(addReceipt -> {
+                                    Log.d(TAG, "✅ TC ID eklendi: " + addReceipt.getTransactionHash());
+                                    // Şimdi oy ver
+                                    performVote(electionId, candidateId, tcIdHash, future);
+                                })
+                                .exceptionally(e -> {
+                                    Log.e(TAG, "❌ TC ID eklenemedi: " + e.getMessage());
+                                    future.completeExceptionally(e);
+                                    return null;
+                                });
+                    } else {
+                        // Direkt oy ver
+                        performVote(electionId, candidateId, tcIdHash, future);
+                    }
+                })
+                .exceptionally(e -> {
+                    Log.e(TAG, "❌ TC ID kontrol hatası: " + e.getMessage());
+                    // Yine de oy vermeyi dene
+                    performVote(electionId, candidateId, tcIdHash, future);
+                    return null;
+                });
     }
 
     private void performVote(BigInteger electionId, BigInteger candidateId, String tcIdHash, CompletableFuture<String> future) {
