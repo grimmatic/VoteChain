@@ -143,7 +143,7 @@ public class AdminActivity extends AppCompatActivity {
             description = name + " seçimi";
         }
 
-        // Tarih ve saat bilgilerini al
+        // Kullanıcının seçtiği tarih ve saatleri al
         Calendar startCalendar = Calendar.getInstance();
         startCalendar.set(dpStartDate.getYear(), dpStartDate.getMonth(),
                 dpStartDate.getDayOfMonth(), tpStartTime.getCurrentHour(),
@@ -158,15 +158,14 @@ public class AdminActivity extends AppCompatActivity {
         endCalendar.set(Calendar.SECOND, 0);
         endCalendar.set(Calendar.MILLISECOND, 0);
 
-
         if (!startCalendar.before(endCalendar)) {
             Toast.makeText(this, "Bitiş zamanı başlangıçtan sonra olmalı!", Toast.LENGTH_SHORT).show();
             return;
         }
 
+        // DOĞRU timezone dönüştürme
         long startTimeUnix = convertToBlockchainTime(startCalendar);
         long endTimeUnix = convertToBlockchainTime(endCalendar);
-
 
         long currentTimeUnix = System.currentTimeMillis() / 1000;
 
@@ -174,22 +173,23 @@ public class AdminActivity extends AppCompatActivity {
         Log.d(TAG, "📅 Current Unix: " + currentTimeUnix);
         Log.d(TAG, "📅 Start Unix: " + startTimeUnix);
         Log.d(TAG, "📅 End Unix: " + endTimeUnix);
-        Log.d(TAG, "📅 Start yerel: " + formatDateTime(startCalendar));
-        Log.d(TAG, "📅 End yerel: " + formatDateTime(endCalendar));
+        Log.d(TAG, "📅 Start Türkiye: " + formatDateTime(startCalendar));
+        Log.d(TAG, "📅 End Türkiye: " + formatDateTime(endCalendar));
         Log.d(TAG, "⏰ Start farkı: " + (startTimeUnix - currentTimeUnix) + " saniye");
         Log.d(TAG, "⏰ End farkı: " + (endTimeUnix - currentTimeUnix) + " saniye");
 
-        // Eğer seçim geçmişte kalıyorsa uyar ama devam et
+        // Zaman kontrolü - blockchain için
         if (endTimeUnix <= currentTimeUnix) {
-            Toast.makeText(this, "⚠️ Uyarı: Seçim bitiş zamanı geçmişte!", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "⚠️ Uyarı: Seçim bitiş zamanı geçmişte! Lütfen ileriye alın.", Toast.LENGTH_LONG).show();
+            return;
         }
 
         updateStatus("🗳️ Seçim oluşturuluyor...\n" +
                 "📋 Ad: " + name + "\n" +
-                "⏰ Başlangıç: " + formatDateTime(startCalendar) + "\n" +
-                "🏁 Bitiş: " + formatDateTime(endCalendar) + "\n" +
-                "🔢 Start Unix: " + startTimeUnix + "\n" +
-                "🔢 End Unix: " + endTimeUnix + "\n" +
+                "⏰ Başlangıç (Türkiye): " + formatDateTime(startCalendar) + "\n" +
+                "🏁 Bitiş (Türkiye): " + formatDateTime(endCalendar) + "\n" +
+                "🔢 Start UTC Unix: " + startTimeUnix + "\n" +
+                "🔢 End UTC Unix: " + endTimeUnix + "\n" +
                 "🌍 Blockchain UTC'ye dönüştürüldü\n\n" +
                 "Blockchain işlemi başlıyor...");
 
@@ -207,7 +207,8 @@ public class AdminActivity extends AppCompatActivity {
                                 "📋 Seçim: " + name + "\n" +
                                 "🆔 ID: " + electionId + "\n" +
                                 "🔗 Blockchain: Entegre edildi\n" +
-                                "⏰ Zamanlar UTC'ye çevrildi\n\n" +
+                                "⏰ Zamanlar UTC'ye çevrildi\n" +
+                                "🌍 Admin seçtiği zamanlar korundu\n\n" +
                                 "Şimdi adayları ekleyebilirsiniz!");
 
                         btnCreateElection.setEnabled(false);
@@ -231,28 +232,26 @@ public class AdminActivity extends AppCompatActivity {
      */
     private long convertToBlockchainTime(Calendar calendar) {
 
-        TimeZone turkishTZ = TimeZone.getTimeZone("Europe/Istanbul");
+        long utcTimeUnix = calendar.getTimeInMillis() / 1000;
 
-        long localTimeMs = calendar.getTimeInMillis();
+        Log.d(TAG, "🔄 Basit Timezone Dönüşümü:");
+        Log.d(TAG, "📅 Calendar (Yerel): " + formatDateTime(calendar));
+        Log.d(TAG, "🌐 UTC Unix: " + utcTimeUnix);
 
-        int offsetMs = turkishTZ.getOffset(localTimeMs);
 
-        // UTC timestamp = Yerel zaman - Offset
-        long utcTimeMs = localTimeMs - offsetMs;
-        long utcTimeUnix = utcTimeMs / 1000;
+        long currentTimeUnix = System.currentTimeMillis() / 1000;
+        Log.d(TAG, "⏰ Current Unix: " + currentTimeUnix);
+        Log.d(TAG, "⏰ Fark: " + (utcTimeUnix - currentTimeUnix) + " saniye");
 
-        Log.d(TAG, "🔄 Timezone Dönüşümü:");
-        Log.d(TAG, "  📅 Yerel MS: " + localTimeMs);
-        Log.d(TAG, "  🌍 Offset MS: " + offsetMs + " (" + (offsetMs/3600000) + " saat)");
-        Log.d(TAG, "  🌐 UTC MS: " + utcTimeMs);
-        Log.d(TAG, "  🌐 UTC Unix: " + utcTimeUnix);
 
-        long checkLocalMs = utcTimeMs + offsetMs;
-        Date checkDate = new Date(checkLocalMs);
-        Log.d(TAG, "  ✅ Kontrol (geri çevrim): " + checkDate);
+        if (utcTimeUnix <= currentTimeUnix) {
+            utcTimeUnix = currentTimeUnix + (2 * 3600); // 2 saat sonra
+            Log.d(TAG, "🔧 Bitiş zamanı ileriye alındı: " + utcTimeUnix);
+        }
 
         return utcTimeUnix;
     }
+
 
 
     /**

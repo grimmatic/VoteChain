@@ -12,7 +12,10 @@ import org.web3j.tx.gas.ContractGasProvider;
 import org.web3j.tx.gas.DefaultGasProvider;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
+import java.util.TimeZone;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -170,88 +173,10 @@ public class BlockchainManager {
      * Akıllı kontrat dağıtır ve adresini döndürür
      * @return Kontrat adresi
      */
-    public CompletableFuture<String> deployContract() {
-        CompletableFuture<String> future = new CompletableFuture<>();
 
-        try {
-            ContractGasProvider gasProvider = new DefaultGasProvider();
 
-            // Asenkron olarak kontrat dağıt
-            VotingContract.deploy(
-                            web3j,
-                            credentials,
-                            gasProvider
-                    ).sendAsync()
-                    .thenAccept(contract -> {
-                        contractAddress = contract.getContractAddress();
-                        votingContract = contract;
-                        Log.d(TAG, "Contract deployed at: " + contractAddress);
-                        future.complete(contractAddress);
-                    })
-                    .exceptionally(e -> {
-                        Log.e(TAG, "Error deploying contract", e);
-                        future.completeExceptionally(e);
-                        return null;
-                    });
-        } catch (Exception e) {
-            Log.e(TAG, "Error deploying contract", e);
-            future.completeExceptionally(e);
-        }
 
-        return future;
-    }
 
-    /**
-     * Yeni bir seçim oluşturur
-     * @param election Seçim nesnesi
-     * @return İşlem hash'i
-     */
-    public CompletableFuture<String> createElection(Election election) {
-        CompletableFuture<String> future = new CompletableFuture<>();
-
-        try {
-            // Unix timestamp'leri hesapla
-            long startTime = election.getStartDate().getTime() / 1000;
-            long endTime = election.getEndDate().getTime() / 1000;
-            long currentTime = System.currentTimeMillis() / 1000;
-
-            Log.d(TAG, "🕐 ZAMAN DEBUG:");
-            Log.d(TAG, "📅 Current timestamp: " + currentTime);
-            Log.d(TAG, "📅 Start timestamp: " + startTime);
-            Log.d(TAG, "📅 End timestamp: " + endTime);
-            Log.d(TAG, "📅 Start - Current = " + (startTime - currentTime) + " seconds");
-            Log.d(TAG, "📅 Current - Start = " + (currentTime - startTime) + " seconds");
-
-            if (startTime > currentTime) {
-                Log.w(TAG, "⚠️ UYARI: Seçim gelecekte başlıyor!");
-            } else {
-                Log.i(TAG, "✅ Seçim geçmişte başlamış, iyi!");
-            }
-
-            // isActive parametresini kaldırdım
-            votingContract.createElection(
-                            election.getName(),
-                            election.getDescription(),
-                            BigInteger.valueOf(startTime),
-                            BigInteger.valueOf(endTime)
-                    ).sendAsync()
-                    .thenAccept(receipt -> {
-                        String txHash = receipt.getTransactionHash();
-                        Log.d(TAG, "Election created: " + txHash);
-                        future.complete(txHash);
-                    })
-                    .exceptionally(e -> {
-                        Log.e(TAG, "Error creating election", e);
-                        future.completeExceptionally(e);
-                        return null;
-                    });
-        } catch (Exception e) {
-            Log.e(TAG, "Error creating election", e);
-            future.completeExceptionally(e);
-        }
-
-        return future;
-    }
     public boolean isSystemReady() {
         boolean walletOK = (credentials != null && getWalletAddress() != null);
         boolean contractOK = (votingContract != null && getContractAddress() != null);
@@ -432,6 +357,20 @@ public class BlockchainManager {
             Log.d(TAG, "👤 Candidate ID: " + candidateId);
             Log.d(TAG, "🆔 TC Kimlik: " + tcKimlikNo);
 
+            // Şimdiki sistem zamanını göster
+            long currentSystemTime = System.currentTimeMillis() / 1000;
+            Date currentDate = new Date(currentSystemTime * 1000);
+
+            Log.d(TAG, "⏰ ZAMAN DEBUG:");
+            Log.d(TAG, "📅 Sistem Unix: " + currentSystemTime);
+            Log.d(TAG, "📅 Sistem Türkiye: " + currentDate);
+
+            // UTC zamanını da hesapla
+            Calendar utcCalendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+            long utcTime = utcCalendar.getTimeInMillis() / 1000;
+            Log.d(TAG, "🌐 UTC Unix: " + utcTime);
+            Log.d(TAG, "🌐 UTC Zaman: " + utcCalendar.getTime());
+
             if (votingContract == null) {
                 Log.e(TAG, "❌ VOTING CONTRACT NULL!");
                 future.completeExceptionally(new Exception("Voting contract başlatılamadı"));
@@ -446,15 +385,18 @@ public class BlockchainManager {
             votingContract.hasTCHashVoted(tcIdHash, electionId).sendAsync()
                     .thenAccept(hasVoted -> {
                         if (hasVoted) {
+                            Log.w(TAG, "⚠️ Bu TC kimlik zaten oy kullanmış!");
                             future.completeExceptionally(new Exception("Bu TC kimlik ile bu seçimde zaten oy kullanılmış!"));
                             return;
                         }
 
+                        Log.d(TAG, "✅ TC kimlik kontrolü geçti, oy verilebilir");
                         // Oy ver
                         performVoteWithTCHash(electionId, candidateId, tcIdHash, future);
                     })
                     .exceptionally(e -> {
-                        Log.w(TAG, "⚠️ TC hash kontrolü yapılamadı" + e.getMessage());
+                        Log.w(TAG, "⚠️ TC hash kontrolü yapılamadı: " + e.getMessage());
+                        // Kontrol yapılamazsa da oy vermeyi dene
                         performVoteWithTCHash(electionId, candidateId, tcIdHash, future);
                         return null;
                     });
@@ -496,40 +438,7 @@ public class BlockchainManager {
             future.completeExceptionally(e);
         }
     }
-    private void performVoteAfterContractInit(BigInteger electionId, BigInteger candidateId, String tcKimlikNo, CompletableFuture<String> future) {
-        String tcIdHash = Hash.sha3String(tcKimlikNo);
 
-        // Önce TC ID'nin valid olup olmadığını kontrol et
-        votingContract.isValidTCId(tcIdHash).sendAsync()
-                .thenAccept(isValid -> {
-                    Log.d(TAG, "🔍 TC ID Valid Check: " + isValid);
-
-                    if (!isValid) {
-                        Log.w(TAG, "⚠️ TC ID geçerli değil, önce ekleniyor...");
-                        // TC ID'yi ekle, sonra oy ver
-                        votingContract.addValidTCId(tcIdHash).sendAsync()
-                                .thenAccept(addReceipt -> {
-                                    Log.d(TAG, "✅ TC ID eklendi: " + addReceipt.getTransactionHash());
-                                    // Şimdi oy ver
-                                    performVote(electionId, candidateId, tcIdHash, future);
-                                })
-                                .exceptionally(e -> {
-                                    Log.e(TAG, "❌ TC ID eklenemedi: " + e.getMessage());
-                                    future.completeExceptionally(e);
-                                    return null;
-                                });
-                    } else {
-                        // Direkt oy ver
-                        performVote(electionId, candidateId, tcIdHash, future);
-                    }
-                })
-                .exceptionally(e -> {
-                    Log.e(TAG, "❌ TC ID kontrol hatası: " + e.getMessage());
-                    // Yine de oy vermeyi dene
-                    performVote(electionId, candidateId, tcIdHash, future);
-                    return null;
-                });
-    }
 
     private void performVote(BigInteger electionId, BigInteger candidateId, String tcIdHash, CompletableFuture<String> future) {
         ContractGasProvider gasProvider = new DefaultGasProvider() {
@@ -565,67 +474,7 @@ public class BlockchainManager {
             future.completeExceptionally(e);
         }
     }
-    public CompletableFuture<List<VoteRecord>> getElectionVotes(BigInteger electionId) {
-        CompletableFuture<List<VoteRecord>> future = new CompletableFuture<>();
 
-        try {
-            if (votingContract == null) {
-                future.completeExceptionally(new Exception("Voting contract başlatılamadı"));
-                return future;
-            }
-
-            votingContract.getElectionVotes(electionId).sendAsync()
-                    .thenAccept(result -> {
-                        try {
-                            List<VoteRecord> voteRecords = new ArrayList<>();
-
-                            @SuppressWarnings("unchecked")
-                            List<BigInteger> voteIds = (List<BigInteger>) result.get(0).getValue();
-
-                            @SuppressWarnings("unchecked")
-                            List<org.web3j.abi.datatypes.Utf8String> tcHashObjects =
-                                    (List<org.web3j.abi.datatypes.Utf8String>) result.get(1).getValue();
-
-                            @SuppressWarnings("unchecked")
-                            List<BigInteger> candidateIds = (List<BigInteger>) result.get(2).getValue();
-
-                            @SuppressWarnings("unchecked")
-                            List<BigInteger> timestamps = (List<BigInteger>) result.get(3).getValue();
-
-                            @SuppressWarnings("unchecked")
-                            List<String> voters = (List<String>) result.get(4).getValue();
-
-                            for (int i = 0; i < voteIds.size(); i++) {
-                                VoteRecord record = new VoteRecord();
-                                record.voteId = voteIds.get(i);
-                                record.tcHash = tcHashObjects.get(i).getValue();
-                                record.electionId = electionId;
-                                record.candidateId = candidateIds.get(i);
-                                record.timestamp = timestamps.get(i);
-                                record.voterAddress = voters.get(i);
-
-                                voteRecords.add(record);
-                            }
-
-                            Log.d(TAG, "✅ " + voteRecords.size() + " oy kaydı alındı");
-                            future.complete(voteRecords);
-                        } catch (Exception e) {
-                            Log.e(TAG, "❌ Oy kayıtları parse hatası", e);
-                            future.completeExceptionally(e);
-                        }
-                    })
-                    .exceptionally(e -> {
-                        Log.e(TAG, "❌ Oy kayıtları alma hatası", e);
-                        future.completeExceptionally(e);
-                        return null;
-                    });
-        } catch (Exception e) {
-            Log.e(TAG, "❌ Oy kayıtları genel hatası", e);
-            future.completeExceptionally(e);
-        }
-
-        return future;
-    }
 
 
     public static class VoteRecord {
@@ -636,28 +485,7 @@ public class BlockchainManager {
         public BigInteger timestamp;
         public String voterAddress;
     }
-    public CompletableFuture<String> setElectionActive(BigInteger electionId, boolean active) {
-        CompletableFuture<String> future = new CompletableFuture<>();
 
-        try {
-            votingContract.setElectionActive(electionId, active).sendAsync()
-                    .thenAccept(receipt -> {
-                        String txHash = receipt.getTransactionHash();
-                        Log.d(TAG, "Election status updated: " + txHash);
-                        future.complete(txHash);
-                    })
-                    .exceptionally(e -> {
-                        Log.e(TAG, "Error updating election status", e);
-                        future.completeExceptionally(e);
-                        return null;
-                    });
-        } catch (Exception e) {
-            Log.e(TAG, "Error updating election status", e);
-            future.completeExceptionally(e);
-        }
-
-        return future;
-    }
     /**
      * Mevcut cüzdan adresini döndürür
      * @return Ethereum cüzdan adresi
