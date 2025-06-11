@@ -188,16 +188,23 @@ public class VotingContract extends Contract {
         return executeRemoteCallSingleValueReturn(function, BigInteger.class);
     }
 
-    public RemoteFunctionCall<TransactionReceipt> vote(BigInteger _electionId, BigInteger _candidateId, String _tcIdHash) {
+    public RemoteFunctionCall<TransactionReceipt> vote(BigInteger _electionId, BigInteger _candidateId, String _tcHash) {
         final Function function = new Function(
-                FUNC_VOTE,
+                "vote",
                 Arrays.<Type>asList(new org.web3j.abi.datatypes.generated.Uint256(_electionId),
                         new org.web3j.abi.datatypes.generated.Uint256(_candidateId),
-                        new org.web3j.abi.datatypes.Utf8String(_tcIdHash)),
+                        new org.web3j.abi.datatypes.Utf8String(_tcHash)),
                 Collections.<TypeReference<?>>emptyList());
         return executeRemoteCallTransaction(function);
     }
-
+    public static class VoteCastEventResponse extends BaseEventResponse {
+        public BigInteger voteId;
+        public BigInteger electionId;
+        public BigInteger candidateId;
+        public String tcHash;
+        public String voter;
+        public BigInteger timestamp;
+    }
     public RemoteFunctionCall<List<Type>> getElectionResults(BigInteger _electionId) {
         final Function function = new Function(FUNC_GETELECTIONRESULTS,
                 Arrays.<Type>asList(new org.web3j.abi.datatypes.generated.Uint256(_electionId)),
@@ -314,10 +321,57 @@ public class VotingContract extends Contract {
     public static class TCIDAddedEventResponse extends BaseEventResponse {
         public String hashedTCID;
     }
+    /**
+     * TC Hash ile oy verme kontrolü
+     */
+    public RemoteFunctionCall<Boolean> hasTCHashVoted(String _tcHash, BigInteger _electionId) {
+        final Function function = new Function(
+                "hasTCHashVoted",
+                Arrays.<Type>asList(new org.web3j.abi.datatypes.Utf8String(_tcHash),
+                        new org.web3j.abi.datatypes.generated.Uint256(_electionId)),
+                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+        return executeRemoteCallSingleValueReturn(function, Boolean.class);
+    }
 
-    public static class VoteCastEventResponse extends BaseEventResponse {
-        public BigInteger electionId;
-        public BigInteger candidateId;
-        public String voter;
+    /**
+     * Belirli bir oy kaydını getirir
+     */
+    public RemoteFunctionCall<List<Type>> getVote(BigInteger _voteId) {
+        final Function function = new Function("getVote",
+                Arrays.<Type>asList(new org.web3j.abi.datatypes.generated.Uint256(_voteId)),
+                Arrays.<TypeReference<?>>asList(
+                        new TypeReference<Utf8String>() {},  // tcHash
+                        new TypeReference<Uint256>() {},     // electionId
+                        new TypeReference<Uint256>() {},     // candidateId
+                        new TypeReference<Uint256>() {},     // timestamp
+                        new TypeReference<Address>() {}      // voter
+                ));
+        return executeRemoteCallMultipleValueReturn(function);
+    }
+
+    /**
+     * Bir seçimin tüm oylarını getirir
+     */
+    public RemoteFunctionCall<List<Type>> getElectionVotes(BigInteger _electionId) {
+        final Function function = new Function("getElectionVotes",
+                Arrays.<Type>asList(new org.web3j.abi.datatypes.generated.Uint256(_electionId)),
+                Arrays.<TypeReference<?>>asList(
+                        new TypeReference<DynamicArray<Uint256>>() {},    // voteIds
+                        new TypeReference<DynamicArray<Utf8String>>() {}, // tcHashes
+                        new TypeReference<DynamicArray<Uint256>>() {},    // candidateIds
+                        new TypeReference<DynamicArray<Uint256>>() {},    // timestamps
+                        new TypeReference<DynamicArray<Address>>() {}     // voters
+                ));
+        return executeRemoteCallMultipleValueReturn(function);
+    }
+
+    /**
+     * Toplam oy sayısını getirir
+     */
+    public RemoteFunctionCall<BigInteger> voteCount() {
+        final Function function = new Function("voteCount",
+                Arrays.<Type>asList(),
+                Arrays.<TypeReference<?>>asList(new TypeReference<Uint256>() {}));
+        return executeRemoteCallSingleValueReturn(function, BigInteger.class);
     }
 }

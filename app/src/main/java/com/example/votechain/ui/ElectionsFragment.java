@@ -1,5 +1,7 @@
 package com.example.votechain.ui;
 
+import static android.content.ContentValues.TAG;
+
 import android.app.AlertDialog;
 import android.os.Bundle;
 import android.util.Log;
@@ -367,11 +369,10 @@ public class ElectionsFragment extends Fragment {
                 .get()
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful() && !task.getResult().isEmpty()) {
-                        // Daha önce oy kullanılmış
                         Toast.makeText(getContext(),
                                 "Bu seçimde zaten oy kullandınız!",
                                 Toast.LENGTH_LONG).show();
-                        checkIfUserAlreadyVoted(currentElection.getId()); // UI'ı güncelle
+                        checkIfUserAlreadyVoted(currentElection.getId());
                         return;
                     }
 
@@ -386,8 +387,8 @@ public class ElectionsFragment extends Fragment {
                                 if (documentSnapshot.exists()) {
                                     User user = documentSnapshot.toObject(User.class);
                                     if (user != null && user.getTcKimlikNo() != null) {
-                                        // Önce TC kimliği blockchain'e ekle, sonra oy ver
-                                        addTCIdAndVote(user.getTcKimlikNo());
+                                        // Direkt blockchain'e oy ver - TC hash kaydedilecek
+                                        processBlockchainVoteSimple(user.getTcKimlikNo());
                                     } else {
                                         progressBar.setVisibility(View.GONE);
                                         btnSubmitVote.setEnabled(true);
@@ -413,6 +414,28 @@ public class ElectionsFragment extends Fragment {
                             Toast.LENGTH_SHORT).show();
                 });
     }
+    private void processBlockchainVoteSimple(String tcKimlikNo) {
+        electionManager.castVote(currentElection.getId(), selectedCandidateId, tcKimlikNo)
+                .thenAccept(transactionHash -> {
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            Log.d(TAG, "✅ Blockchain oy verme başarılı: " + transactionHash);
+                            // Blockchain başarılı, Firebase'e kaydet
+                            saveVoteToFirebase(transactionHash, tcKimlikNo);
+                        });
+                    }
+                })
+                .exceptionally(e -> {
+                    if (getActivity() != null) {
+                        getActivity().runOnUiThread(() -> {
+                            Log.w(TAG, "⚠️ Blockchain oy verme başarısız: " + e.getMessage());
+                            // Blockchain başarısız, sadece Firebase'e kaydet
+                            saveVoteToFirebase(null, tcKimlikNo);
+                        });
+                    }
+                    return null;
+                });
+    }
     private void processBlockchainVote(String tcKimlikNo) {
         electionManager.castVote(currentElection.getId(), selectedCandidateId, tcKimlikNo)
                 .thenAccept(transactionHash -> {
@@ -433,27 +456,7 @@ public class ElectionsFragment extends Fragment {
                     return null;
                 });
     }
-    private void addTCIdAndVote(String tcKimlikNo) {
-        // Önce TC kimliği blockchain'e ekle
-        electionManager.addValidTCId(tcKimlikNo)
-                .thenAccept(transactionHash -> {
-                    if (getActivity() != null) {
-                        getActivity().runOnUiThread(() -> {
-                            // TC kimlik eklendi, şimdi oy ver
-                            processBlockchainVote(tcKimlikNo);
-                        });
-                    }
-                })
-                .exceptionally(e -> {
-                    if (getActivity() != null) {
-                        getActivity().runOnUiThread(() -> {
-                            // TC kimlik eklenemedi ama yine de oy vermeyi dene
-                            processBlockchainVote(tcKimlikNo);
-                        });
-                    }
-                    return null;
-                });
-    }
+
     private void saveVoteToFirebase(String transactionHash, String tcKimlikNo) {
         String userId = mAuth.getCurrentUser().getUid();
 

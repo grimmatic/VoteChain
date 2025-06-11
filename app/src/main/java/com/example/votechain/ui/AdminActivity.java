@@ -335,27 +335,7 @@ public class AdminActivity extends AppCompatActivity {
     /**
      * TC ID'lerini sırayla ekler
      */
-    private void addTCIdRecursively(final List<String> tcIds, int index) {
-        if (index >= tcIds.size()) {
-            // Tüm TC ID'ler eklendi, seçimi Firebase'de aktif hale getir
-            activateElectionInFirebase();
-            return;
-        }
 
-        String tcId = tcIds.get(index);
-        electionManager.addValidTCId(tcId)
-                .thenAccept(transactionHash -> {
-                    Log.d(TAG, "TC ID eklendi: " + tcId + " -> " + transactionHash);
-                    // Bir sonraki TC ID'yi ekle
-                    addTCIdRecursively(tcIds, index + 1);
-                })
-                .exceptionally(e -> {
-                    Log.w(TAG, "TC ID eklenirken hata: " + tcId, e);
-                    // Hata olsa da devam et
-                    addTCIdRecursively(tcIds, index + 1);
-                    return null;
-                });
-    }
 
     /**
      * Seçimi Firebase'de aktif hale getirir

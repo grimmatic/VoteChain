@@ -151,21 +151,5 @@ public class RegisterActivity extends AppCompatActivity {
         });
     }
 
-    private void addTCIdToBlockchain(String tcKimlikNo) {
-        // Arka planda blockchain'e TC kimlik ekle
-        // Başarısız olsa da uygulama çalışmaya devam etsin
-        try {
-            BlockchainElectionManager electionManager = BlockchainElectionManager.getInstance();
-            electionManager.addValidTCId(tcKimlikNo)
-                    .thenAccept(transactionHash -> {
-                        Log.d("RegisterActivity", "TC kimlik blockchain'e eklendi: " + transactionHash);
-                    })
-                    .exceptionally(e -> {
-                        Log.w("RegisterActivity", "TC kimlik blockchain'e eklenemedi: " + e.getMessage());
-                        return null;
-                    });
-        } catch (Exception e) {
-            Log.w("RegisterActivity", "Blockchain bağlantısı yok: " + e.getMessage());
-        }
-    }
+
 }
