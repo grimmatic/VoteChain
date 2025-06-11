@@ -48,23 +48,22 @@
             android:exported="false"
             />
 
-        <!-- Test Activity -->
-        <activity
-            android:name=".ui.TestActivity"
-            android:exported="false" />
 
         <activity
             android:name=".ui.AdminElectionActivity"
             android:exported="false"
             android:label="Seçim Oluştur" />
 
-        <!-- Seçim Yönetimi Activity - Sadece Admin -->
+
         <activity
             android:name=".ui.ManageElectionsActivity"
             android:exported="false"
             android:label="Seçimleri Yönet" />
 
         <activity android:name=".ui.AdminActivity" />
+        <meta-data
+            android:name="com.google.android.gms.version"
+            android:value="@integer/google_play_services_version" />
     </application>
 
 </manifest>

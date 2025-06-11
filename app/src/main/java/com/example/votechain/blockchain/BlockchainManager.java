@@ -346,8 +346,10 @@ public class BlockchainManager {
                         try {
                             List<Candidate> candidates = new ArrayList<>();
 
+
                             @SuppressWarnings("unchecked")
-                            List<BigInteger> ids = (List<BigInteger>) result.get(0).getValue();
+                            List<org.web3j.abi.datatypes.generated.Uint256> idObjects =
+                                    (List<org.web3j.abi.datatypes.generated.Uint256>) result.get(0).getValue();
 
                             @SuppressWarnings("unchecked")
                             List<org.web3j.abi.datatypes.Utf8String> nameObjects =
@@ -358,11 +360,18 @@ public class BlockchainManager {
                                     (List<org.web3j.abi.datatypes.Utf8String>) result.get(2).getValue();
 
                             @SuppressWarnings("unchecked")
-                            List<BigInteger> voteCounts = (List<BigInteger>) result.get(3).getValue();
+                            List<org.web3j.abi.datatypes.generated.Uint256> voteCountObjects =
+                                    (List<org.web3j.abi.datatypes.generated.Uint256>) result.get(3).getValue();
 
-                            // Utf8String'leri String'e çevir
+
+                            List<BigInteger> ids = new ArrayList<>();
                             List<String> names = new ArrayList<>();
                             List<String> parties = new ArrayList<>();
+                            List<BigInteger> voteCounts = new ArrayList<>();
+
+                            for (org.web3j.abi.datatypes.generated.Uint256 idObj : idObjects) {
+                                ids.add(idObj.getValue());
+                            }
 
                             for (org.web3j.abi.datatypes.Utf8String nameObj : nameObjects) {
                                 names.add(nameObj.getValue());
@@ -370,6 +379,10 @@ public class BlockchainManager {
 
                             for (org.web3j.abi.datatypes.Utf8String partyObj : partyObjects) {
                                 parties.add(partyObj.getValue());
+                            }
+
+                            for (org.web3j.abi.datatypes.generated.Uint256 voteCountObj : voteCountObjects) {
+                                voteCounts.add(voteCountObj.getValue());
                             }
 
                             Log.d(TAG, "📊 Sonuç sayısı: " + ids.size());
