@@ -4,6 +4,8 @@ import android.os.Bundle;
 import android.util.Log;
 import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 import com.example.votechain.R;
 import com.example.votechain.blockchain.BlockchainElectionManager;
 import com.example.votechain.model.Candidate;
@@ -18,7 +20,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 
-
 public class AdminActivity extends AppCompatActivity {
 
     private static final String TAG = "AdminActivity";
@@ -28,13 +29,13 @@ public class AdminActivity extends AppCompatActivity {
     private DatePicker dpStartDate, dpEndDate;
     private TimePicker tpStartTime, tpEndTime;
     private EditText etCandidateName, etCandidateParty;
-    private ListView lvCandidates;
-    private Button btnCreateElection, btnAddCandidate, btnRegisterTCIds, btnActivateElection;
+    private RecyclerView recyclerViewCandidates; // ListView yerine RecyclerView
+    private Button btnCreateElection, btnAddCandidate, btnActivateElection;
     private TextView tvStatus;
 
     // Data
     private BlockchainElectionManager electionManager;
-    private ArrayAdapter<String> candidatesAdapter;
+    private CandidateListAdapter candidatesAdapter; // ArrayAdapter yerine custom adapter
     private List<Candidate> candidatesList;
     private String currentElectionId;
     private boolean systemReady = false;
@@ -45,6 +46,13 @@ public class AdminActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_admin);
 
+
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setDisplayShowHomeEnabled(true);
+            getSupportActionBar().setTitle("🏛️ Admin Paneli");
+        }
+
         initViews();
         setupListeners();
 
@@ -52,7 +60,11 @@ public class AdminActivity extends AppCompatActivity {
         candidatesList = new ArrayList<>();
         db = FirebaseFirestore.getInstance();
 
-        // Blockchain sistemini başlat
+
+        candidatesAdapter = new CandidateListAdapter(candidatesList);
+        recyclerViewCandidates.setLayoutManager(new LinearLayoutManager(this));
+        recyclerViewCandidates.setAdapter(candidatesAdapter);
+
         initializeBlockchainSystem();
     }
 
@@ -65,17 +77,15 @@ public class AdminActivity extends AppCompatActivity {
         tpEndTime = findViewById(R.id.tpEndTime);
         etCandidateName = findViewById(R.id.etCandidateName);
         etCandidateParty = findViewById(R.id.etCandidateParty);
-        lvCandidates = findViewById(R.id.lvCandidates);
+
+        recyclerViewCandidates = findViewById(R.id.lvCandidates);
+
         btnCreateElection = findViewById(R.id.btnCreateElection);
         btnAddCandidate = findViewById(R.id.btnAddCandidate);
         btnActivateElection = findViewById(R.id.btnStartElection);
         tvStatus = findViewById(R.id.tvStatus);
 
-        // ListView adapter
-        candidatesAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1);
-        lvCandidates.setAdapter(candidatesAdapter);
 
-        // Başlangıçta tüm butonları deaktif et
         setButtonsEnabled(false);
     }
 
@@ -83,6 +93,16 @@ public class AdminActivity extends AppCompatActivity {
         btnCreateElection.setOnClickListener(v -> createElection());
         btnAddCandidate.setOnClickListener(v -> addCandidate());
         btnActivateElection.setOnClickListener(v -> activateElection());
+    }
+
+
+    @Override
+    public boolean onOptionsItemSelected(android.view.MenuItem item) {
+        if (item.getItemId() == android.R.id.home) {
+            onBackPressed();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     /**
@@ -143,7 +163,6 @@ public class AdminActivity extends AppCompatActivity {
             description = name + " seçimi";
         }
 
-
         Calendar startCalendar = Calendar.getInstance();
         startCalendar.set(dpStartDate.getYear(), dpStartDate.getMonth(),
                 dpStartDate.getDayOfMonth(), tpStartTime.getCurrentHour(),
@@ -163,7 +182,6 @@ public class AdminActivity extends AppCompatActivity {
             return;
         }
 
-
         String finalDescription = description;
         electionManager.getCurrentBlockchainTime()
                 .thenAccept(blockchainCurrentTime -> {
@@ -179,9 +197,7 @@ public class AdminActivity extends AppCompatActivity {
                         Log.d(TAG, "📅 Start Türkiye: " + formatDateTime(startCalendar));
                         Log.d(TAG, "📅 End Türkiye: " + formatDateTime(endCalendar));
 
-
                         if (endTimeUnix <= blockchainCurrentTime) {
-
                             long newEndTime = blockchainCurrentTime + (24 * 3600);
                             Log.w(TAG, "⚠️ Bitiş zamanı geçmişte kaldı, otomatik düzeltiliyor:");
                             Log.w(TAG, "🔧 Yeni bitiş zamanı: " + newEndTime + " (" + new Date(newEndTime * 1000) + ")");
@@ -189,20 +205,12 @@ public class AdminActivity extends AppCompatActivity {
                         }
 
                         if (startTimeUnix <= blockchainCurrentTime) {
-                            // Başlangıç zamanını da düzelt
-                            startTimeUnix = blockchainCurrentTime + 300; // 5 dakika sonra başlasın
+                            startTimeUnix = blockchainCurrentTime + 300;
                             Log.w(TAG, "🔧 Başlangıç zamanı da düzeltildi: " + startTimeUnix);
                         }
 
-                        long currentTimeUnix = System.currentTimeMillis() / 1000;
-
-                        Log.d(TAG, "📊 SON ZAMAN DURUMU:");
-                        Log.d(TAG, "⏰ Start farkı (blockchain): " + (startTimeUnix - blockchainCurrentTime) + " saniye");
-                        Log.d(TAG, "⏰ End farkı (blockchain): " + (endTimeUnix - blockchainCurrentTime) + " saniye");
-
-                        // Seçim süresinin minimum 1 saat olmasını sağla
                         if ((endTimeUnix - startTimeUnix) < 3600) {
-                            endTimeUnix = startTimeUnix + 3600; // 1 saat
+                            endTimeUnix = startTimeUnix + 3600;
                             Log.w(TAG, "🔧 Minimum seçim süresi için bitiş zamanı ayarlandı");
                         }
 
@@ -220,7 +228,6 @@ public class AdminActivity extends AppCompatActivity {
                                 endCalendar.getTime(),
                                 false);
 
-                        // Final değişkenler oluştur
                         final long finalStartTimeUnix = startTimeUnix;
                         final long finalEndTimeUnix = endTimeUnix;
 
@@ -242,7 +249,6 @@ public class AdminActivity extends AppCompatActivity {
                                         etElectionName.setText("");
                                         etElectionDescription.setText("");
 
-                                        // Oluşturulduktan sonra blockchain zamanını tekrar doğrula
                                         verifyBlockchainTime(finalStartTimeUnix, finalEndTimeUnix);
                                     });
                                 })
@@ -262,16 +268,12 @@ public class AdminActivity extends AppCompatActivity {
                     return null;
                 });
     }
+
     /**
      * Calendar'ı blockchain için doğru Unix timestamp'e çevirir
-     * Türkiye saatinden UTC'ye dönüştürür
      */
-
     private long convertToBlockchainTime(Calendar calendar) {
-
         long localTimeUnix = calendar.getTimeInMillis() / 1000;
-
-
         TimeZone turkeyTimeZone = TimeZone.getTimeZone("Europe/Istanbul");
         int offsetInMilliseconds = turkeyTimeZone.getOffset(calendar.getTimeInMillis());
         long utcTimeUnix = localTimeUnix - (offsetInMilliseconds / 1000);
@@ -286,16 +288,15 @@ public class AdminActivity extends AppCompatActivity {
         Log.d(TAG, "⏰ Current Unix: " + currentTimeUnix);
         Log.d(TAG, "⏰ Fark: " + (utcTimeUnix - currentTimeUnix) + " saniye");
 
-
         if (utcTimeUnix <= currentTimeUnix) {
-
-            utcTimeUnix = currentTimeUnix + 3600; // 1 saat sonra
+            utcTimeUnix = currentTimeUnix + 3600;
             Log.d(TAG, "🔧 Zaman gelecekte tutuldu: " + utcTimeUnix);
             Log.d(TAG, "📅 Yeni UTC Zaman: " + new Date(utcTimeUnix * 1000));
         }
 
         return utcTimeUnix;
     }
+
     private void verifyBlockchainTime(long expectedStartTime, long expectedEndTime) {
         if (electionManager == null) {
             Log.e(TAG, "❌ ElectionManager null!");
@@ -318,7 +319,6 @@ public class AdminActivity extends AppCompatActivity {
                             long hoursDiff = (blockchainTime - expectedEndTime) / 3600;
                             Log.e(TAG, "🔧 Seçim bitiş zamanını " + hoursDiff + " saat ileriye alın");
 
-                            // Kullanıcıya uyarı göster
                             Toast.makeText(AdminActivity.this,
                                     "⚠️ Uyarı: Seçim süresi blockchain zamanına göre dolmuş!\n" +
                                             "Seçimi " + hoursDiff + " saat uzatmanız gerekebilir.",
@@ -360,7 +360,6 @@ public class AdminActivity extends AppCompatActivity {
             party = "Bağımsız";
         }
 
-        // Final değişkenler oluştur
         final String finalName = name;
         final String finalParty = party;
 
@@ -374,9 +373,7 @@ public class AdminActivity extends AppCompatActivity {
         electionManager.addCandidate(currentElectionId, candidate)
                 .thenAccept(candidateId -> {
                     runOnUiThread(() -> {
-                        // Listeye ekle
                         candidatesList.add(candidate);
-                        candidatesAdapter.add(finalName + " - " + finalParty);
                         candidatesAdapter.notifyDataSetChanged();
 
                         updateStatus("✅ Aday başarıyla eklendi!\n\n" +
@@ -387,11 +384,9 @@ public class AdminActivity extends AppCompatActivity {
                                         "✨ Seçimi aktifleştirmeye hazır!" :
                                         "En az 2 aday gerekli"));
 
-                        // Form temizle
                         etCandidateName.setText("");
                         etCandidateParty.setText("");
 
-                        // 2 aday olunca aktifleştirme butonunu aç
                         if (candidatesList.size() >= 2) {
                             btnActivateElection.setEnabled(true);
                         }
@@ -414,14 +409,8 @@ public class AdminActivity extends AppCompatActivity {
                 "📊 " + candidatesList.size() + " aday ile seçim başlatılıyor\n\n" +
                 "Son işlemler yapılıyor...");
 
-
         activateElectionInFirebase();
     }
-
-    /**
-     * TC ID'lerini sırayla ekler
-     */
-
 
     /**
      * Seçimi Firebase'de aktif hale getirir
@@ -432,7 +421,6 @@ public class AdminActivity extends AppCompatActivity {
             return;
         }
 
-        // Firebase'de seçimi aktif hale getir
         db.collection("elections").document(currentElectionId)
                 .update("active", true)
                 .addOnSuccessListener(aVoid -> {
@@ -444,7 +432,6 @@ public class AdminActivity extends AppCompatActivity {
                                 "🗳️ Şeffaf Oylama: Hazır\n\n" +
                                 "Seçim kullanıcılara görünür hale geldi!");
 
-                        // Tüm butonları deaktif et
                         setButtonsEnabled(false);
                         btnActivateElection.setEnabled(false);
 
@@ -487,8 +474,40 @@ public class AdminActivity extends AppCompatActivity {
         return address;
     }
 
-    /**
-     * Tarih ve saati formatlar
-     */
+    // RecyclerView için basit adapter sınıfı
+    private static class CandidateListAdapter extends RecyclerView.Adapter<CandidateListAdapter.ViewHolder> {
+        private List<Candidate> candidates;
 
+        public CandidateListAdapter(List<Candidate> candidates) {
+            this.candidates = candidates;
+        }
+
+        @Override
+        public ViewHolder onCreateViewHolder(android.view.ViewGroup parent, int viewType) {
+            android.widget.TextView textView = new android.widget.TextView(parent.getContext());
+            textView.setPadding(16, 16, 16, 16);
+            textView.setTextSize(16);
+            return new ViewHolder(textView);
+        }
+
+        @Override
+        public void onBindViewHolder(ViewHolder holder, int position) {
+            Candidate candidate = candidates.get(position);
+            holder.textView.setText((position + 1) + ". " + candidate.getName() + " - " + candidate.getParty());
+        }
+
+        @Override
+        public int getItemCount() {
+            return candidates.size();
+        }
+
+        static class ViewHolder extends RecyclerView.ViewHolder {
+            TextView textView;
+
+            ViewHolder(TextView textView) {
+                super(textView);
+                this.textView = textView;
+            }
+        }
+    }
 }

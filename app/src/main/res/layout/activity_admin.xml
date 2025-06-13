@@ -152,7 +152,7 @@
             android:layout_marginBottom="16dp"
             android:enabled="false" />
 
-        <!-- Adaylar Listesi -->
+        <!-- Adaylar Listesi - RecyclerView olarak değiştirildi -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -162,7 +162,7 @@
             android:textColor="#333"
             android:layout_marginBottom="8dp" />
 
-        <ListView
+        <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/lvCandidates"
             android:layout_width="match_parent"
             android:layout_height="200dp"
