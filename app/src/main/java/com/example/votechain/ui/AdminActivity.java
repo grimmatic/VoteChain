@@ -228,28 +228,30 @@ public class AdminActivity extends AppCompatActivity {
      * Calendar'ı blockchain için doğru Unix timestamp'e çevirir
      * Türkiye saatinden UTC'ye dönüştürür
      */
+
     private long convertToBlockchainTime(Calendar calendar) {
 
-        long utcTimeUnix = calendar.getTimeInMillis() / 1000;
 
-        Log.d(TAG, "🔄 Basit Timezone Dönüşümü:");
-        Log.d(TAG, "📅 Calendar (Yerel): " + formatDateTime(calendar));
+        long localTimeUnix = calendar.getTimeInMillis() / 1000;
+        long utcTimeUnix = localTimeUnix - (3 * 3600);
+
+        Log.d(TAG, "🔄 Timezone Dönüşümü:");
+        Log.d(TAG, "📅 Local Time: " + formatDateTime(calendar));
+        Log.d(TAG, "📅 Local Unix: " + localTimeUnix);
         Log.d(TAG, "🌐 UTC Unix: " + utcTimeUnix);
-
 
         long currentTimeUnix = System.currentTimeMillis() / 1000;
         Log.d(TAG, "⏰ Current Unix: " + currentTimeUnix);
         Log.d(TAG, "⏰ Fark: " + (utcTimeUnix - currentTimeUnix) + " saniye");
 
-
+        // Eğer bitiş zamanı geçmişte kalıyorsa ileriye al
         if (utcTimeUnix <= currentTimeUnix) {
-            utcTimeUnix = currentTimeUnix + (2 * 3600); // 2 saat sonra
-            Log.d(TAG, "🔧 Bitiş zamanı ileriye alındı: " + utcTimeUnix);
+            utcTimeUnix = currentTimeUnix + (2 * 3600);
+            Log.d(TAG, "🔧 Zaman ileriye alındı: " + utcTimeUnix);
         }
 
         return utcTimeUnix;
     }
-
 
 
     /**

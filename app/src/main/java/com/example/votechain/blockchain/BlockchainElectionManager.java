@@ -155,12 +155,37 @@ public class BlockchainElectionManager {
         performVoteWithElectionCheck(firebaseElectionId, candidateId, tcKimlikNo, future);
         return future;
     }
+    private void debugElectionMapping(String firebaseElectionId) {
+        Log.d(TAG, "🔍 ELECTION ID MAPPING DEBUG:");
+        Log.d(TAG, "Firebase Election ID: " + firebaseElectionId);
+
+        BigInteger blockchainId = firebaseToBlockchainIds.get(firebaseElectionId);
+        Log.d(TAG, "Cached Blockchain ID: " + blockchainId);
+
+        Log.d(TAG, "All cached mappings:");
+        for (Map.Entry<String, BigInteger> entry : firebaseToBlockchainIds.entrySet()) {
+            Log.d(TAG, "  " + entry.getKey() + " -> " + entry.getValue());
+        }
+
+        // Check blockchain directly
+        if (blockchainId != null) {
+            blockchainManager.debugElectionInfo(blockchainId)
+                    .thenAccept(debugInfo -> {
+                        Log.d(TAG, "🔍 BLOCKCHAIN ELECTION INFO: " + debugInfo);
+                    })
+                    .exceptionally(e -> {
+                        Log.e(TAG, "❌ Failed to get blockchain election info: " + e.getMessage());
+                        return null;
+                    });
+        }
+    }
+
     /**
      * Oy verme işlemi - Election ID'sini kontrol ederek
      */
     private void performVoteWithElectionCheck(String firebaseElectionId, String candidateId, String tcKimlikNo, CompletableFuture<String> future) {
         Log.d(TAG, "🔍 Election ID kontrolü başlıyor...");
-
+        debugElectionMapping(firebaseElectionId);
         // Önce cache'den kontrol et
         BigInteger blockchainElectionId = firebaseToBlockchainIds.get(firebaseElectionId);
 
@@ -404,19 +429,6 @@ public class BlockchainElectionManager {
             Log.d(TAG, "⛓️ Şimdiki Zaman: " + currentTime);
             Log.d(TAG, "📊 Start - Current: " + (startTimeUnix - currentTime) + " saniye");
             Log.d(TAG, "📊 End - Current: " + (endTimeUnix - currentTime) + " saniye");
-
-            // 🔧 ZAMAN KONTROLÜ
-            if (endTimeUnix <= currentTime) {
-                Log.w(TAG, "⚠️ UYARI: Seçim süresi dolmuş! End time'ı ileriye alıyorum");
-                endTimeUnix = currentTime + (24 * 3600); // 24 saat sonrasına al
-            }
-
-            if (startTimeUnix > currentTime) {
-                Log.i(TAG, "🕐 Seçim gelecekte başlayacak");
-                // Blockchain test için başlangıcı geçmişe al
-                startTimeUnix = currentTime - 3600; // 1 saat önce
-                Log.d(TAG, "🔧 Test için start time düzeltildi: " + startTimeUnix);
-            }
 
             // 1. Önce Firebase'de oluştur
             long finalStartTimeUnix = startTimeUnix;
