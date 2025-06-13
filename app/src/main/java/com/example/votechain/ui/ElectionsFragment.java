@@ -436,26 +436,7 @@ public class ElectionsFragment extends Fragment {
                     return null;
                 });
     }
-    private void processBlockchainVote(String tcKimlikNo) {
-        electionManager.castVote(currentElection.getId(), selectedCandidateId, tcKimlikNo)
-                .thenAccept(transactionHash -> {
-                    if (getActivity() != null) {
-                        getActivity().runOnUiThread(() -> {
-                            // Blockchain başarılı, Firebase'e kaydet
-                            saveVoteToFirebase(transactionHash, tcKimlikNo);
-                        });
-                    }
-                })
-                .exceptionally(e -> {
-                    if (getActivity() != null) {
-                        getActivity().runOnUiThread(() -> {
-                            // Blockchain başarısız, sadece Firebase'e kaydet
-                            saveVoteToFirebase(null, tcKimlikNo);
-                        });
-                    }
-                    return null;
-                });
-    }
+
 
     private void saveVoteToFirebase(String transactionHash, String tcKimlikNo) {
         String userId = mAuth.getCurrentUser().getUid();
@@ -554,12 +535,6 @@ public class ElectionsFragment extends Fragment {
                 });
     }
 
-    private String truncateAddress(String address) {
-        if (address != null && address.length() > 10) {
-            return address.substring(0, 6) + "..." + address.substring(address.length() - 4);
-        }
-        return address != null ? address : "N/A";
-    }
 
     @Override
     public void onResume() {

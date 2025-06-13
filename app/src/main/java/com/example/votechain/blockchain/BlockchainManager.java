@@ -3,6 +3,9 @@ import android.content.Context;
 import android.util.Log;
 import com.example.votechain.model.Candidate;
 import com.example.votechain.model.Election;
+
+import org.web3j.abi.datatypes.Utf8String;
+import org.web3j.abi.datatypes.generated.Uint256;
 import org.web3j.crypto.Credentials;
 import org.web3j.crypto.Hash;
 import org.web3j.protocol.Web3j;
@@ -475,16 +478,143 @@ public class BlockchainManager {
         }
     }
 
+    /**
+     * Seçim bilgilerini debug için kontrol eder
+     */
+    public CompletableFuture<String> debugElectionInfo(BigInteger electionId) {
+        CompletableFuture<String> future = new CompletableFuture<>();
 
+        try {
+            Log.d(TAG, "🔍 BLOCKCHAIN SEÇİM DEBUG BAŞLADI");
+            Log.d(TAG, "📊 Election ID: " + electionId);
 
-    public static class VoteRecord {
-        public BigInteger voteId;
-        public String tcHash;
-        public BigInteger electionId;
-        public BigInteger candidateId;
-        public BigInteger timestamp;
-        public String voterAddress;
+            // 1. Önce mevcut blockchain zamanını al
+            getCurrentBlockchainTime()
+                    .thenAccept(currentBlockchainTime -> {
+                        Log.d(TAG, "⛓️ Mevcut Blockchain Zamanı: " + currentBlockchainTime);
+                        Log.d(TAG, "📅 Blockchain Tarihi: " + new Date(currentBlockchainTime * 1000));
+
+                        // 2. Seçim bilgilerini al
+                        if (votingContract != null) {
+                            votingContract.getElection(electionId).sendAsync()
+                                    .thenAccept(electionData -> {
+                                        try {
+                                            // Election data parse et
+                                            BigInteger id = (BigInteger) electionData.get(0);
+                                            Utf8String nameUtf8 = (Utf8String) electionData.get(1);
+                                            String name = nameUtf8.getValue();
+                                            Utf8String descriptionUtf8 = (Utf8String) electionData.get(2);
+                                            String description = descriptionUtf8.getValue();
+                                            BigInteger startTime = (BigInteger) electionData.get(3);
+                                            BigInteger endTime = (BigInteger) electionData.get(4);
+                                            Uint256 activeUint = (Uint256) electionData.get(5);
+                                            Boolean active = activeUint.getValue().equals(BigInteger.ONE);
+
+                                            Log.d(TAG, "📋 BLOCKCHAIN'DEN ALINAN SEÇİM BİLGİLERİ:");
+                                            Log.d(TAG, "  🆔 ID: " + id);
+                                            Log.d(TAG, "  📝 Ad: " + name);
+                                            Log.d(TAG, "  📄 Açıklama: " + description);
+                                            Log.d(TAG, "  ⏰ Başlangıç: " + startTime + " (" + new Date(startTime.longValue() * 1000) + ")");
+                                            Log.d(TAG, "  🏁 Bitiş: " + endTime + " (" + new Date(endTime.longValue() * 1000) + ")");
+                                            Log.d(TAG, "  ✅ Aktif: " + active);
+
+                                            // 3. Zaman karşılaştırması
+                                            long currentTime = currentBlockchainTime;
+                                            long start = startTime.longValue();
+                                            long end = endTime.longValue();
+
+                                            Log.d(TAG, "🕐 ZAMAN KARŞILAŞTIRMASI:");
+                                            Log.d(TAG, "  📊 Current: " + currentTime);
+                                            Log.d(TAG, "  📊 Start: " + start);
+                                            Log.d(TAG, "  📊 End: " + end);
+                                            Log.d(TAG, "  ✅ Current >= Start: " + (currentTime >= start));
+                                            Log.d(TAG, "  ✅ Current <= End: " + (currentTime <= end));
+                                            Log.d(TAG, "  📊 Current - Start: " + (currentTime - start) + " saniye");
+                                            Log.d(TAG, "  📊 End - Current: " + (end - currentTime) + " saniye");
+
+                                            // 4. Sonuç
+                                            boolean canVote = active && (currentTime >= start) && (currentTime <= end);
+                                            Log.d(TAG, "🗳️ OY VEREBİLİR Mİ: " + canVote);
+
+                                            if (!canVote) {
+                                                if (!active) {
+                                                    Log.e(TAG, "❌ SORUN: Seçim aktif değil!");
+                                                } else if (currentTime < start) {
+                                                    Log.e(TAG, "❌ SORUN: Seçim henüz başlamamış!");
+                                                    Log.e(TAG, "⏰ " + (start - currentTime) + " saniye sonra başlayacak");
+                                                } else if (currentTime > end) {
+                                                    Log.e(TAG, "❌ SORUN: Seçim süresi dolmuş!");
+                                                    Log.e(TAG, "⏰ " + (currentTime - end) + " saniye önce bitmiş");
+                                                    Log.e(TAG, "🔧 BU NEDENLE 'Election has ended' HATASI ALIYOR!");
+                                                }
+                                            }
+
+                                            String result = "Election ID: " + id + ", Active: " + active + ", CanVote: " + canVote;
+                                            future.complete(result);
+
+                                        } catch (Exception e) {
+                                            Log.e(TAG, "❌ Election data parse hatası", e);
+                                            future.completeExceptionally(e);
+                                        }
+                                    })
+                                    .exceptionally(e -> {
+                                        Log.e(TAG, "❌ Seçim bilgileri alınamadı", e);
+                                        future.completeExceptionally(e);
+                                        return null;
+                                    });
+                        } else {
+                            Log.e(TAG, "❌ Voting contract null!");
+                            future.completeExceptionally(new Exception("Voting contract not initialized"));
+                        }
+                    })
+                    .exceptionally(e -> {
+                        Log.e(TAG, "❌ Blockchain zamanı alınamadı", e);
+                        future.completeExceptionally(e);
+                        return null;
+                    });
+
+        } catch (Exception e) {
+            Log.e(TAG, "❌ debugElectionInfo genel hatası", e);
+            future.completeExceptionally(e);
+        }
+
+        return future;
     }
+
+    /**
+     * Mevcut blockchain zamanını alır - PUBLIC versiyon
+     */
+    public CompletableFuture<Long> getCurrentBlockchainTime() {
+        CompletableFuture<Long> future = new CompletableFuture<>();
+
+        try {
+            if (web3j == null) {
+                future.completeExceptionally(new Exception("Web3j not initialized"));
+                return future;
+            }
+
+            web3j.ethGetBlockByNumber(DefaultBlockParameter.valueOf("latest"), false)
+                    .sendAsync()
+                    .thenAccept(block -> {
+                        if (block.getBlock() != null) {
+                            long blockTime = block.getBlock().getTimestamp().longValue();
+                            future.complete(blockTime);
+                        } else {
+                            future.completeExceptionally(new Exception("Latest block alınamadı"));
+                        }
+                    })
+                    .exceptionally(e -> {
+                        future.completeExceptionally(e);
+                        return null;
+                    });
+        } catch (Exception e) {
+            future.completeExceptionally(e);
+        }
+
+        return future;
+    }
+
+
 
     /**
      * Mevcut cüzdan adresini döndürür
@@ -589,31 +719,4 @@ public class BlockchainManager {
         return future;
     }
 
-    /**
-     * Mevcut blockchain zamanını alır
-     */
-    private CompletableFuture<Long> getCurrentBlockchainTime() {
-        CompletableFuture<Long> future = new CompletableFuture<>();
-
-        try {
-            web3j.ethGetBlockByNumber(DefaultBlockParameter.valueOf("latest"), false)
-                    .sendAsync()
-                    .thenAccept(block -> {
-                        if (block.getBlock() != null) {
-                            long blockTime = block.getBlock().getTimestamp().longValue();
-                            future.complete(blockTime);
-                        } else {
-                            future.completeExceptionally(new Exception("Latest block alınamadı"));
-                        }
-                    })
-                    .exceptionally(e -> {
-                        future.completeExceptionally(e);
-                        return null;
-                    });
-        } catch (Exception e) {
-            future.completeExceptionally(e);
-        }
-
-        return future;
-    }
 }
