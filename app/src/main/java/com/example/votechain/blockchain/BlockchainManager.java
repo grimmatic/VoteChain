@@ -499,16 +499,13 @@ public class BlockchainManager {
                             votingContract.getElection(electionId).sendAsync()
                                     .thenAccept(electionData -> {
                                         try {
-                                            // Election data parse et
-                                            BigInteger id = (BigInteger) electionData.get(0);
-                                            Utf8String nameUtf8 = (Utf8String) electionData.get(1);
-                                            String name = nameUtf8.getValue();
-                                            Utf8String descriptionUtf8 = (Utf8String) electionData.get(2);
-                                            String description = descriptionUtf8.getValue();
-                                            BigInteger startTime = (BigInteger) electionData.get(3);
-                                            BigInteger endTime = (BigInteger) electionData.get(4);
-                                            Uint256 activeUint = (Uint256) electionData.get(5);
-                                            Boolean active = activeUint.getValue().equals(BigInteger.ONE);
+                                            // DÜZELTME: Doğru tip dönüşümü
+                                            BigInteger id = ((Uint256) electionData.get(0)).getValue();
+                                            String name = ((Utf8String) electionData.get(1)).getValue();
+                                            String description = ((Utf8String) electionData.get(2)).getValue();
+                                            BigInteger startTime = ((Uint256) electionData.get(3)).getValue();
+                                            BigInteger endTime = ((Uint256) electionData.get(4)).getValue();
+                                            Boolean active = ((org.web3j.abi.datatypes.Bool) electionData.get(5)).getValue();
 
                                             Log.d(TAG, "📋 BLOCKCHAIN'DEN ALINAN SEÇİM BİLGİLERİ:");
                                             Log.d(TAG, "  🆔 ID: " + id);
@@ -553,7 +550,18 @@ public class BlockchainManager {
                                             future.complete(result);
 
                                         } catch (Exception e) {
-                                            Log.e(TAG, "❌ Election data parse hatası", e);
+                                            Log.e(TAG, "❌ Election data parse hatası - TİP DÖNÜŞÜM SORUNU:", e);
+
+                                            // Alternatif parse yöntemi deneyelim
+                                            try {
+                                                Log.d(TAG, "🔄 Alternatif parse yöntemi deneniyor...");
+                                                for (int i = 0; i < electionData.size(); i++) {
+                                                    Log.d(TAG, "Data[" + i + "]: " + electionData.get(i).getClass().getSimpleName() + " = " + electionData.get(i));
+                                                }
+                                            } catch (Exception e2) {
+                                                Log.e(TAG, "Alternatif parse de başarısız", e2);
+                                            }
+
                                             future.completeExceptionally(e);
                                         }
                                     })

@@ -12,9 +12,11 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TimeZone;
 
 
 public class AdminActivity extends AppCompatActivity {
@@ -141,7 +143,7 @@ public class AdminActivity extends AppCompatActivity {
             description = name + " seçimi";
         }
 
-        // Kullanıcının seçtiği tarih ve saatleri al
+
         Calendar startCalendar = Calendar.getInstance();
         startCalendar.set(dpStartDate.getYear(), dpStartDate.getMonth(),
                 dpStartDate.getDayOfMonth(), tpStartTime.getCurrentHour(),
@@ -161,69 +163,105 @@ public class AdminActivity extends AppCompatActivity {
             return;
         }
 
-        // DOĞRU timezone dönüştürme
-        long startTimeUnix = convertToBlockchainTime(startCalendar);
-        long endTimeUnix = convertToBlockchainTime(endCalendar);
 
-        long currentTimeUnix = System.currentTimeMillis() / 1000;
-
-        Log.d(TAG, "🕐 ZAMAN DEBUG:");
-        Log.d(TAG, "📅 Current Unix: " + currentTimeUnix);
-        Log.d(TAG, "📅 Start Unix: " + startTimeUnix);
-        Log.d(TAG, "📅 End Unix: " + endTimeUnix);
-        Log.d(TAG, "📅 Start Türkiye: " + formatDateTime(startCalendar));
-        Log.d(TAG, "📅 End Türkiye: " + formatDateTime(endCalendar));
-        Log.d(TAG, "⏰ Start farkı: " + (startTimeUnix - currentTimeUnix) + " saniye");
-        Log.d(TAG, "⏰ End farkı: " + (endTimeUnix - currentTimeUnix) + " saniye");
-
-        // Zaman kontrolü - blockchain için
-        if (endTimeUnix <= currentTimeUnix) {
-            Toast.makeText(this, "⚠️ Uyarı: Seçim bitiş zamanı geçmişte! Lütfen ileriye alın.", Toast.LENGTH_LONG).show();
-            return;
-        }
-
-        updateStatus("🗳️ Seçim oluşturuluyor...\n" +
-                "📋 Ad: " + name + "\n" +
-                "⏰ Başlangıç (Türkiye): " + formatDateTime(startCalendar) + "\n" +
-                "🏁 Bitiş (Türkiye): " + formatDateTime(endCalendar) + "\n" +
-                "🔢 Start UTC Unix: " + startTimeUnix + "\n" +
-                "🔢 End UTC Unix: " + endTimeUnix + "\n" +
-                "🌍 Blockchain UTC'ye dönüştürüldü\n\n" +
-                "Blockchain işlemi başlıyor...");
-
-        Election election = new Election(name, description,
-                startCalendar.getTime(),
-                endCalendar.getTime(),
-                false);
-
-        electionManager.createElectionWithCustomTimes(election, startTimeUnix, endTimeUnix)
-                .thenAccept(electionId -> {
+        String finalDescription = description;
+        electionManager.getCurrentBlockchainTime()
+                .thenAccept(blockchainCurrentTime -> {
                     runOnUiThread(() -> {
-                        currentElectionId = electionId;
+                        // Timezone dönüştürme işlemi
+                        long startTimeUnix = convertToBlockchainTime(startCalendar);
+                        long endTimeUnix = convertToBlockchainTime(endCalendar);
 
-                        updateStatus("✅ Seçim başarıyla oluşturuldu!\n\n" +
-                                "📋 Seçim: " + name + "\n" +
-                                "🆔 ID: " + electionId + "\n" +
-                                "🔗 Blockchain: Entegre edildi\n" +
-                                "⏰ Zamanlar UTC'ye çevrildi\n" +
-                                "🌍 Admin seçtiği zamanlar korundu\n\n" +
-                                "Şimdi adayları ekleyebilirsiniz!");
+                        Log.d(TAG, "🕐 ZAMAN KONTROLÜ (Düzeltilmiş):");
+                        Log.d(TAG, "⛓️ Blockchain Şimdiki Zaman: " + blockchainCurrentTime);
+                        Log.d(TAG, "📅 Hesaplanan Start Unix: " + startTimeUnix);
+                        Log.d(TAG, "📅 Hesaplanan End Unix: " + endTimeUnix);
+                        Log.d(TAG, "📅 Start Türkiye: " + formatDateTime(startCalendar));
+                        Log.d(TAG, "📅 End Türkiye: " + formatDateTime(endCalendar));
 
-                        btnCreateElection.setEnabled(false);
-                        btnAddCandidate.setEnabled(true);
-                        etElectionName.setText("");
-                        etElectionDescription.setText("");
+
+                        if (endTimeUnix <= blockchainCurrentTime) {
+
+                            long newEndTime = blockchainCurrentTime + (24 * 3600);
+                            Log.w(TAG, "⚠️ Bitiş zamanı geçmişte kaldı, otomatik düzeltiliyor:");
+                            Log.w(TAG, "🔧 Yeni bitiş zamanı: " + newEndTime + " (" + new Date(newEndTime * 1000) + ")");
+                            endTimeUnix = newEndTime;
+                        }
+
+                        if (startTimeUnix <= blockchainCurrentTime) {
+                            // Başlangıç zamanını da düzelt
+                            startTimeUnix = blockchainCurrentTime + 300; // 5 dakika sonra başlasın
+                            Log.w(TAG, "🔧 Başlangıç zamanı da düzeltildi: " + startTimeUnix);
+                        }
+
+                        long currentTimeUnix = System.currentTimeMillis() / 1000;
+
+                        Log.d(TAG, "📊 SON ZAMAN DURUMU:");
+                        Log.d(TAG, "⏰ Start farkı (blockchain): " + (startTimeUnix - blockchainCurrentTime) + " saniye");
+                        Log.d(TAG, "⏰ End farkı (blockchain): " + (endTimeUnix - blockchainCurrentTime) + " saniye");
+
+                        // Seçim süresinin minimum 1 saat olmasını sağla
+                        if ((endTimeUnix - startTimeUnix) < 3600) {
+                            endTimeUnix = startTimeUnix + 3600; // 1 saat
+                            Log.w(TAG, "🔧 Minimum seçim süresi için bitiş zamanı ayarlandı");
+                        }
+
+                        updateStatus("🗳️ Seçim oluşturuluyor...\n" +
+                                "📋 Ad: " + name + "\n" +
+                                "⏰ Başlangıç (Blockchain UTC): " + new Date(startTimeUnix * 1000) + "\n" +
+                                "🏁 Bitiş (Blockchain UTC): " + new Date(endTimeUnix * 1000) + "\n" +
+                                "🔢 Start Unix: " + startTimeUnix + "\n" +
+                                "🔢 End Unix: " + endTimeUnix + "\n" +
+                                "⛓️ Blockchain zamanına göre düzeltildi\n\n" +
+                                "Blockchain işlemi başlıyor...");
+
+                        Election election = new Election(name, finalDescription,
+                                startCalendar.getTime(),
+                                endCalendar.getTime(),
+                                false);
+
+                        // Final değişkenler oluştur
+                        final long finalStartTimeUnix = startTimeUnix;
+                        final long finalEndTimeUnix = endTimeUnix;
+
+                        electionManager.createElectionWithCustomTimes(election, finalStartTimeUnix, finalEndTimeUnix)
+                                .thenAccept(electionId -> {
+                                    runOnUiThread(() -> {
+                                        currentElectionId = electionId;
+
+                                        updateStatus("✅ Seçim başarıyla oluşturuldu!\n\n" +
+                                                "📋 Seçim: " + name + "\n" +
+                                                "🆔 ID: " + electionId + "\n" +
+                                                "🔗 Blockchain: Entegre edildi\n" +
+                                                "⏰ Zamanlar blockchain'e uygun düzeltildi\n" +
+                                                "🌍 UTC zamanları kullanıldı\n\n" +
+                                                "Şimdi adayları ekleyebilirsiniz!");
+
+                                        btnCreateElection.setEnabled(false);
+                                        btnAddCandidate.setEnabled(true);
+                                        etElectionName.setText("");
+                                        etElectionDescription.setText("");
+
+                                        // Oluşturulduktan sonra blockchain zamanını tekrar doğrula
+                                        verifyBlockchainTime(finalStartTimeUnix, finalEndTimeUnix);
+                                    });
+                                })
+                                .exceptionally(e -> {
+                                    runOnUiThread(() -> {
+                                        updateStatus("❌ Seçim oluşturma hatası:\n" + e.getMessage());
+                                        Log.e(TAG, "Election creation error", e);
+                                    });
+                                    return null;
+                                });
                     });
                 })
                 .exceptionally(e -> {
                     runOnUiThread(() -> {
-                        updateStatus("❌ Seçim oluşturma hatası:\n" + e.getMessage());
-                        Log.e(TAG, "Election creation error", e);
+                        Toast.makeText(this, "Blockchain zamanı alınamadı: " + e.getMessage(), Toast.LENGTH_LONG).show();
                     });
                     return null;
                 });
     }
-
     /**
      * Calendar'ı blockchain için doğru Unix timestamp'e çevirir
      * Türkiye saatinden UTC'ye dönüştürür
@@ -231,28 +269,72 @@ public class AdminActivity extends AppCompatActivity {
 
     private long convertToBlockchainTime(Calendar calendar) {
 
-
         long localTimeUnix = calendar.getTimeInMillis() / 1000;
-        long utcTimeUnix = localTimeUnix - (3 * 3600);
 
-        Log.d(TAG, "🔄 Timezone Dönüşümü:");
+
+        TimeZone turkeyTimeZone = TimeZone.getTimeZone("Europe/Istanbul");
+        int offsetInMilliseconds = turkeyTimeZone.getOffset(calendar.getTimeInMillis());
+        long utcTimeUnix = localTimeUnix - (offsetInMilliseconds / 1000);
+
+        Log.d(TAG, "🔄 Timezone Dönüşümü (Düzeltilmiş):");
         Log.d(TAG, "📅 Local Time: " + formatDateTime(calendar));
         Log.d(TAG, "📅 Local Unix: " + localTimeUnix);
+        Log.d(TAG, "🌐 Offset (saniye): " + (offsetInMilliseconds / 1000));
         Log.d(TAG, "🌐 UTC Unix: " + utcTimeUnix);
 
         long currentTimeUnix = System.currentTimeMillis() / 1000;
         Log.d(TAG, "⏰ Current Unix: " + currentTimeUnix);
         Log.d(TAG, "⏰ Fark: " + (utcTimeUnix - currentTimeUnix) + " saniye");
 
-        // Eğer bitiş zamanı geçmişte kalıyorsa ileriye al
+
         if (utcTimeUnix <= currentTimeUnix) {
-            utcTimeUnix = currentTimeUnix + (2 * 3600);
-            Log.d(TAG, "🔧 Zaman ileriye alındı: " + utcTimeUnix);
+
+            utcTimeUnix = currentTimeUnix + 3600; // 1 saat sonra
+            Log.d(TAG, "🔧 Zaman gelecekte tutuldu: " + utcTimeUnix);
+            Log.d(TAG, "📅 Yeni UTC Zaman: " + new Date(utcTimeUnix * 1000));
         }
 
         return utcTimeUnix;
     }
+    private void verifyBlockchainTime(long expectedStartTime, long expectedEndTime) {
+        if (electionManager == null) {
+            Log.e(TAG, "❌ ElectionManager null!");
+            return;
+        }
 
+        electionManager.getCurrentBlockchainTime()
+                .thenAccept(blockchainTime -> {
+                    runOnUiThread(() -> {
+                        Log.d(TAG, "🕐 BLOCKCHAIN ZAMAN DOĞRULAMA:");
+                        Log.d(TAG, "⛓️ Blockchain Şimdiki Zaman: " + blockchainTime);
+                        Log.d(TAG, "📅 Blockchain Tarihi: " + new Date(blockchainTime * 1000));
+                        Log.d(TAG, "⏰ Seçim Başlangıç: " + expectedStartTime + " (" + new Date(expectedStartTime * 1000) + ")");
+                        Log.d(TAG, "🏁 Seçim Bitiş: " + expectedEndTime + " (" + new Date(expectedEndTime * 1000) + ")");
+                        Log.d(TAG, "✅ Şu Anda Oy Verilebilir Mi: " +
+                                (blockchainTime >= expectedStartTime && blockchainTime <= expectedEndTime));
+
+                        if (blockchainTime > expectedEndTime) {
+                            Log.e(TAG, "❌ UYARI: Blockchain zamanı seçim bitiş zamanını geçmiş!");
+                            long hoursDiff = (blockchainTime - expectedEndTime) / 3600;
+                            Log.e(TAG, "🔧 Seçim bitiş zamanını " + hoursDiff + " saat ileriye alın");
+
+                            // Kullanıcıya uyarı göster
+                            Toast.makeText(AdminActivity.this,
+                                    "⚠️ Uyarı: Seçim süresi blockchain zamanına göre dolmuş!\n" +
+                                            "Seçimi " + hoursDiff + " saat uzatmanız gerekebilir.",
+                                    Toast.LENGTH_LONG).show();
+                        }
+                    });
+                })
+                .exceptionally(e -> {
+                    runOnUiThread(() -> {
+                        Log.w(TAG, "⚠️ Blockchain zamanı kontrol edilemedi: " + e.getMessage());
+                        Toast.makeText(AdminActivity.this,
+                                "Blockchain zamanı kontrol edilemedi", Toast.LENGTH_SHORT).show();
+                    });
+                    return null;
+                });
+    }
 
     /**
      * Tarihi kullanıcı dostu formatta gösterir

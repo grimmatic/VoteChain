@@ -179,7 +179,80 @@ public class BlockchainElectionManager {
                     });
         }
     }
+    /**
+     * Blockchain'deki mevcut zamanı alır
+     */
+    public CompletableFuture<Long> getCurrentBlockchainTime() {
+        return blockchainManager.getCurrentBlockchainTime();
+    }
 
+    /**
+     * Seçim zamanlarını blockchain zamanına göre doğrular
+     */
+    public CompletableFuture<Boolean> validateElectionTimes(String electionId) {
+        CompletableFuture<Boolean> future = new CompletableFuture<>();
+
+        BigInteger blockchainElectionId = firebaseToBlockchainIds.get(electionId);
+        if (blockchainElectionId == null) {
+            future.complete(false);
+            return future;
+        }
+
+        // Blockchain'den seçim bilgilerini al
+        blockchainManager.debugElectionInfo(blockchainElectionId)
+                .thenAccept(debugResult -> {
+                    Log.d(TAG, "✅ Seçim zamanları doğrulandı: " + debugResult);
+                    future.complete(true);
+                })
+                .exceptionally(e -> {
+                    Log.e(TAG, "❌ Seçim zaman doğrulama hatası: " + e.getMessage());
+                    future.complete(false);
+                    return null;
+                });
+
+        return future;
+    }
+
+    /**
+     * Acil durum için seçim bitiş zamanını uzatır
+     */
+    public CompletableFuture<String> extendElectionEndTime(String firebaseElectionId, long additionalHours) {
+        CompletableFuture<String> future = new CompletableFuture<>();
+
+        BigInteger blockchainElectionId = firebaseToBlockchainIds.get(firebaseElectionId);
+        if (blockchainElectionId == null) {
+            future.completeExceptionally(new Exception("Blockchain seçim ID'si bulunamadı"));
+            return future;
+        }
+
+        getCurrentBlockchainTime()
+                .thenAccept(currentTime -> {
+                    long newEndTime = currentTime + (additionalHours * 3600);
+
+                    // Firebase'de güncelle
+                    Map<String, Object> updates = new HashMap<>();
+                    updates.put("endTimeUnix", newEndTime);
+                    updates.put("extendedAt", System.currentTimeMillis() / 1000);
+                    updates.put("extendedReason", "Blockchain zaman uyumsuzluğu düzeltmesi");
+
+                    db.collection("elections").document(firebaseElectionId)
+                            .update(updates)
+                            .addOnSuccessListener(aVoid -> {
+                                Log.d(TAG, "✅ Seçim bitiş zamanı uzatıldı: " + newEndTime);
+                                future.complete("Seçim " + additionalHours + " saat uzatıldı");
+                            })
+                            .addOnFailureListener(e -> {
+                                Log.e(TAG, "❌ Seçim uzatma hatası", e);
+                                future.completeExceptionally(e);
+                            });
+                })
+                .exceptionally(e -> {
+                    future.completeExceptionally(e);
+                    return null;
+                });
+
+        return future;
+    }
     /**
      * Oy verme işlemi - Election ID'sini kontrol ederek
      */
