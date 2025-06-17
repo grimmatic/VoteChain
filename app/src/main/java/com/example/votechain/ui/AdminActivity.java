@@ -460,7 +460,7 @@ public class AdminActivity extends AppCompatActivity {
 
     // RecyclerView için basit adapter sınıfı
     private static class CandidateListAdapter extends RecyclerView.Adapter<CandidateListAdapter.ViewHolder> {
-        private List<Candidate> candidates;
+        private final List<Candidate> candidates;
 
         public CandidateListAdapter(List<Candidate> candidates) {
             this.candidates = candidates;

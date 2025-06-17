@@ -188,10 +188,10 @@ public class ProfileFragment extends Fragment {
 
     // Oy geçmişi modeli
     public static class VoteHistoryItem {
-        private String id;
-        private String electionName;
-        private String candidateName;
-        private String voteDate;
+        private final String id;
+        private final String electionName;
+        private final String candidateName;
+        private final String voteDate;
 
         public VoteHistoryItem(String id, String electionName, String candidateName, String voteDate) {
             this.id = id;
@@ -219,7 +219,7 @@ public class ProfileFragment extends Fragment {
 
     // Oy geçmişi adapter
     private static class VoteHistoryAdapter extends RecyclerView.Adapter<VoteHistoryAdapter.ViewHolder> {
-        private List<VoteHistoryItem> items;
+        private final List<VoteHistoryItem> items;
 
         public VoteHistoryAdapter(List<VoteHistoryItem> items) {
             this.items = items;

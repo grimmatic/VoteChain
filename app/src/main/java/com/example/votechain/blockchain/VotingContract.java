@@ -48,7 +48,7 @@ public class VotingContract extends Contract {
 
 
     public static final Event CANDIDATEADDED_EVENT = new Event("CandidateAdded",
-            Arrays.<TypeReference<?>>asList(
+            Arrays.asList(
                     new TypeReference<Uint256>(true) {},
                     new TypeReference<Uint256>(true) {},
                     new TypeReference<Utf8String>() {},
@@ -56,7 +56,7 @@ public class VotingContract extends Contract {
             ));
 
     public static final Event ELECTIONCREATED_EVENT = new Event("ElectionCreated",
-            Arrays.<TypeReference<?>>asList(
+            Arrays.asList(
                     new TypeReference<Uint256>(true) {},
                     new TypeReference<Utf8String>() {},
                     new TypeReference<Utf8String>() {},
@@ -65,7 +65,7 @@ public class VotingContract extends Contract {
             ));
 
     public static final Event VOTECAST_EVENT = new Event("VoteCast",
-            Arrays.<TypeReference<?>>asList(
+            Arrays.asList(
                     new TypeReference<Uint256>(true) {},
                     new TypeReference<Uint256>(true) {},
                     new TypeReference<Uint256>(true) {},
@@ -123,38 +123,38 @@ public class VotingContract extends Contract {
     public RemoteFunctionCall<TransactionReceipt> addAdmin(String _admin) {
         final Function function = new Function(
                 FUNC_ADDADMIN,
-                Arrays.<Type>asList(new org.web3j.abi.datatypes.Address(160, _admin)),
-                Collections.<TypeReference<?>>emptyList());
+                Collections.singletonList(new Address(160, _admin)),
+                Collections.emptyList());
         return executeRemoteCallTransaction(function);
     }
 
     public RemoteFunctionCall<TransactionReceipt> addCandidate(BigInteger _electionId, String _name, String _party) {
         final Function function = new Function(
                 FUNC_ADDCANDIDATE,
-                Arrays.<Type>asList(new org.web3j.abi.datatypes.generated.Uint256(_electionId),
+                Arrays.asList(new org.web3j.abi.datatypes.generated.Uint256(_electionId),
                         new org.web3j.abi.datatypes.Utf8String(_name),
                         new org.web3j.abi.datatypes.Utf8String(_party)),
-                Collections.<TypeReference<?>>emptyList());
+                Collections.emptyList());
         return executeRemoteCallTransaction(function);
     }
 
     public RemoteFunctionCall<TransactionReceipt> createElection(String _name, String _description, BigInteger _startTime, BigInteger _endTime) {
         final Function function = new Function(
                 FUNC_CREATEELECTION,
-                Arrays.<Type>asList(new org.web3j.abi.datatypes.Utf8String(_name),
+                Arrays.asList(new org.web3j.abi.datatypes.Utf8String(_name),
                         new org.web3j.abi.datatypes.Utf8String(_description),
                         new org.web3j.abi.datatypes.generated.Uint256(_startTime),
                         new org.web3j.abi.datatypes.generated.Uint256(_endTime)),
-                Collections.<TypeReference<?>>emptyList());
+                Collections.emptyList());
         return executeRemoteCallTransaction(function);
     }
 
     public RemoteFunctionCall<TransactionReceipt> setElectionActive(BigInteger _electionId, Boolean _active) {
         final Function function = new Function(
                 FUNC_SETELECTIONACTIVE,
-                Arrays.<Type>asList(new org.web3j.abi.datatypes.generated.Uint256(_electionId),
+                Arrays.asList(new org.web3j.abi.datatypes.generated.Uint256(_electionId),
                         new org.web3j.abi.datatypes.Bool(_active)),
-                Collections.<TypeReference<?>>emptyList());
+                Collections.emptyList());
         return executeRemoteCallTransaction(function);
     }
 
@@ -162,26 +162,27 @@ public class VotingContract extends Contract {
     public RemoteFunctionCall<TransactionReceipt> vote(BigInteger _electionId, BigInteger _candidateId, String _tcHash) {
         final Function function = new Function(
                 FUNC_VOTE,
-                Arrays.<Type>asList(new org.web3j.abi.datatypes.generated.Uint256(_electionId),
+                Arrays.asList(new org.web3j.abi.datatypes.generated.Uint256(_electionId),
                         new org.web3j.abi.datatypes.generated.Uint256(_candidateId),
                         new org.web3j.abi.datatypes.Utf8String(_tcHash)),
-                Collections.<TypeReference<?>>emptyList());
+                Collections.emptyList());
         return executeRemoteCallTransaction(function);
     }
 
     // View fonksiyonları
     public RemoteFunctionCall<BigInteger> electionCount() {
         final Function function = new Function(FUNC_ELECTIONCOUNT,
-                Arrays.<Type>asList(),
-                Arrays.<TypeReference<?>>asList(new TypeReference<Uint256>() {}));
+                Collections.emptyList(),
+                Collections.singletonList(new TypeReference<Uint256>() {
+                }));
         return executeRemoteCallSingleValueReturn(function, BigInteger.class);
     }
 
     public RemoteFunctionCall<List<Type>> getCandidate(BigInteger _electionId, BigInteger _candidateId) {
         final Function function = new Function(FUNC_GETCANDIDATE,
-                Arrays.<Type>asList(new org.web3j.abi.datatypes.generated.Uint256(_electionId),
+                Arrays.asList(new org.web3j.abi.datatypes.generated.Uint256(_electionId),
                         new org.web3j.abi.datatypes.generated.Uint256(_candidateId)),
-                Arrays.<TypeReference<?>>asList(new TypeReference<Uint256>() {},
+                Arrays.asList(new TypeReference<Uint256>() {},
                         new TypeReference<Utf8String>() {},
                         new TypeReference<Utf8String>() {},
                         new TypeReference<Uint256>() {}));
@@ -190,8 +191,8 @@ public class VotingContract extends Contract {
 
     public RemoteFunctionCall<List<Type>> getElection(BigInteger _electionId) {
         final Function function = new Function(FUNC_GETELECTION,
-                Arrays.<Type>asList(new org.web3j.abi.datatypes.generated.Uint256(_electionId)),
-                Arrays.<TypeReference<?>>asList(new TypeReference<Uint256>() {},
+                Collections.singletonList(new Uint256(_electionId)),
+                Arrays.asList(new TypeReference<Uint256>() {},
                         new TypeReference<Utf8String>() {},
                         new TypeReference<Utf8String>() {},
                         new TypeReference<Uint256>() {},
@@ -202,8 +203,8 @@ public class VotingContract extends Contract {
 
     public RemoteFunctionCall<List<Type>> getElectionResults(BigInteger _electionId) {
         final Function function = new Function(FUNC_GETELECTIONRESULTS,
-                Arrays.<Type>asList(new org.web3j.abi.datatypes.generated.Uint256(_electionId)),
-                Arrays.<TypeReference<?>>asList(new TypeReference<DynamicArray<Uint256>>() {},
+                Collections.singletonList(new Uint256(_electionId)),
+                Arrays.asList(new TypeReference<DynamicArray<Uint256>>() {},
                         new TypeReference<DynamicArray<Utf8String>>() {},
                         new TypeReference<DynamicArray<Utf8String>>() {},
                         new TypeReference<DynamicArray<Uint256>>() {}));
@@ -212,23 +213,26 @@ public class VotingContract extends Contract {
 
     public RemoteFunctionCall<Boolean> hasTCHashVoted(String _tcHash, BigInteger _electionId) {
         final Function function = new Function(FUNC_HASTCHASHVOTED,
-                Arrays.<Type>asList(new org.web3j.abi.datatypes.Utf8String(_tcHash),
+                Arrays.asList(new org.web3j.abi.datatypes.Utf8String(_tcHash),
                         new org.web3j.abi.datatypes.generated.Uint256(_electionId)),
-                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+                Collections.singletonList(new TypeReference<Bool>() {
+                }));
         return executeRemoteCallSingleValueReturn(function, Boolean.class);
     }
 
     public RemoteFunctionCall<Boolean> isAdmin(String param0) {
         final Function function = new Function(FUNC_ISADMIN,
-                Arrays.<Type>asList(new org.web3j.abi.datatypes.Address(160, param0)),
-                Arrays.<TypeReference<?>>asList(new TypeReference<Bool>() {}));
+                Collections.singletonList(new Address(160, param0)),
+                Collections.singletonList(new TypeReference<Bool>() {
+                }));
         return executeRemoteCallSingleValueReturn(function, Boolean.class);
     }
 
     public RemoteFunctionCall<BigInteger> voteCount() {
         final Function function = new Function(FUNC_VOTECOUNT,
-                Arrays.<Type>asList(),
-                Arrays.<TypeReference<?>>asList(new TypeReference<Uint256>() {}));
+                Collections.emptyList(),
+                Collections.singletonList(new TypeReference<Uint256>() {
+                }));
         return executeRemoteCallSingleValueReturn(function, BigInteger.class);
     }
 

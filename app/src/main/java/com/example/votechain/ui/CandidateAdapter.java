@@ -16,8 +16,8 @@ import java.util.List;
 
 public class CandidateAdapter extends RecyclerView.Adapter<CandidateAdapter.CandidateViewHolder> {
 
-    private List<Candidate> candidateList;
-    private OnCandidateClickListener listener;
+    private final List<Candidate> candidateList;
+    private final OnCandidateClickListener listener;
     private int selectedPosition = -1;
 
     public interface OnCandidateClickListener {

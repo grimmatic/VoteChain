@@ -29,15 +29,15 @@ import java.util.Map;
 
 public class LoginActivity extends AppCompatActivity {
 
-    private EditText etTCKimlikNo, etAd, etSoyad, etDogumYili, etPassword;
-    private Button btnLogin, btnRegister;
+    private EditText etTCKimlikNo,etPassword;
+    private Button btnLogin;
 
     private TextView tvGoToRegister;
     private ProgressBar progressBar;
 
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
-    private TCKimlikDogrulama tcDogrulama;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

@@ -20,8 +20,8 @@ import java.util.List;
  */
 public class ManageElectionAdapter extends RecyclerView.Adapter<ManageElectionAdapter.ViewHolder> {
 
-    private List<Election> electionList;
-    private OnElectionActionListener listener;
+    private final List<Election> electionList;
+    private final OnElectionActionListener listener;
 
     public interface OnElectionActionListener {
         void onElectionEdit(Election election);

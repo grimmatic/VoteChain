@@ -59,7 +59,7 @@ public class AdminFragment extends Fragment {
         btnManageElections = view.findViewById(R.id.btnManageElections);
 
         // Sistem durumu için TextView ekle
-        ViewGroup parentView = (ViewGroup) view.findViewById(R.id.cardAdminActions);
+        ViewGroup parentView = view.findViewById(R.id.cardAdminActions);
         tvSystemStatus = new TextView(getContext());
         tvSystemStatus.setTextSize(12);
         tvSystemStatus.setPadding(16, 8, 16, 8);
@@ -349,8 +349,8 @@ public class AdminFragment extends Fragment {
 
     // UserAdapter sınıfı aynı kalacak...
     static class UserAdapter extends RecyclerView.Adapter<UserAdapter.ViewHolder> {
-        private List<User> userList;
-        private OnUserActionListener listener;
+        private final List<User> userList;
+        private final OnUserActionListener listener;
 
         interface OnUserActionListener {
             void onUserDelete(User user);

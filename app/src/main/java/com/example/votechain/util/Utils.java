@@ -11,25 +11,7 @@ import java.util.Locale;
 
 public class Utils {
 
-    /**
-     * İnternet bağlantısının olup olmadığını kontrol eder.
-     * @param context Uygulama konteksti
-     * @return Bağlantı varsa true, yoksa false
-     */
-    public static boolean isNetworkAvailable(Context context) {
-        ConnectivityManager connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-        NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
-        return activeNetworkInfo != null && activeNetworkInfo.isConnected();
-    }
 
-    /**
-     * Toast mesajı gösterir.
-     * @param context Uygulama konteksti
-     * @param message Gösterilecek mesaj
-     */
-    public static void showToast(Context context, String message) {
-        Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
-    }
 
     /**
      * Tarihi string formatına dönüştürür.

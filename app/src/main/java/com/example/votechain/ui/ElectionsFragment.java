@@ -42,7 +42,7 @@ public class ElectionsFragment extends Fragment {
 
     private RecyclerView recyclerViewElections, recyclerViewCandidates;
     private ProgressBar progressBar;
-    private TextView tvNoElections, tvCurrentElection, tvBlockchainStatus;
+    private TextView tvNoElections, tvCurrentElection;
     private Button btnBackToElections, btnSubmitVote;
     private View layoutElectionsList, layoutVoting;
 

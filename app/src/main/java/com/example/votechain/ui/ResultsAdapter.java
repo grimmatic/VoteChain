@@ -71,7 +71,7 @@ public class ResultsAdapter extends RecyclerView.Adapter<ResultsAdapter.ResultVi
         }
 
         // Progress bar'ı ayarla
-        holder.progressBar.setProgress((int) Math.round(percentage));
+        holder.progressBar.setProgress(Math.round(percentage));
 
         // Progress bar rengi (kazanan için farklı renk)
         if (candidate.getVoteCount() > 0 && isWinner(candidate)) {

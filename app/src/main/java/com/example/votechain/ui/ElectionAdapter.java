@@ -19,8 +19,8 @@ import java.util.List;
 
 public class ElectionAdapter extends RecyclerView.Adapter<ElectionAdapter.ElectionViewHolder> {
 
-    private List<Election> electionList;
-    private OnElectionClickListener listener;
+    private final List<Election> electionList;
+    private final OnElectionClickListener listener;
 
     public interface OnElectionClickListener {
         void onElectionClick(Election election);
@@ -50,7 +50,10 @@ public class ElectionAdapter extends RecyclerView.Adapter<ElectionAdapter.Electi
     }
 
     public static class ElectionViewHolder extends RecyclerView.ViewHolder {
-        private TextView tvElectionName, tvElectionDescription, tvElectionDate, tvElectionStatus;
+        private final TextView tvElectionName;
+        private final TextView tvElectionDescription;
+        private final TextView tvElectionDate;
+        private final TextView tvElectionStatus;
 
         public ElectionViewHolder(@NonNull View itemView) {
             super(itemView);

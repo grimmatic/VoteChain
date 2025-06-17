@@ -5,7 +5,7 @@ pragma solidity ^0.8.0;
  * @title Oylama Sistemi Akıllı Sözleşmesi
  * @dev Bu sözleşme, blockchain üzerinde güvenli ve şeffaf bir oylama sistemi sağlar.
  * @author Sevban SARIÇİÇEK, Özgün Ecem DOK
- * @notice VoteChain bitirme projesi için geliştirilmiştir
+ * @notice VoteChain projesi için geliştirilmiştir
  */
 contract VotingSystem {
 
@@ -35,28 +35,41 @@ contract VotingSystem {
         address voter;
     }
 
-    // Seçimler deposu
+
     mapping(uint => Election) public elections;
     uint public electionCount;
 
-    // Oy kayıtları - her oy için benzersiz ID
+
     mapping(uint => Vote) public votes;
     uint public voteCount;
 
     // TC Hash ile oy verme kontrolü - bir TC sadece bir seçimde bir kez oy verebilir
     mapping(string => mapping(uint => bool)) public tcHashVoted; // tcHash => electionId => voted
 
-
     mapping(address => bool) public isAdmin;
 
+    //
+    event ElectionCreated(
+        uint indexed electionId,
+        string name,
+        string description,
+        uint startTime,
+        uint endTime
+    );
 
-    event ElectionCreated(uint indexed electionId, string name, uint startTime, uint endTime);
-    event CandidateAdded(uint indexed electionId, uint indexed candidateId, string name);
+    event CandidateAdded(
+        uint indexed electionId,
+        uint indexed candidateId,
+        string name,
+        string party
+    );
+
     event VoteCast(
         uint indexed voteId,
         uint indexed electionId,
         uint indexed candidateId,
         string tcHash,
+        string candidateName,
         address voter,
         uint timestamp
     );
@@ -93,7 +106,7 @@ contract VotingSystem {
         election.active = true;
         election.candidateCount = 0;
 
-        emit ElectionCreated(electionCount, _name, _startTime, _endTime);
+        emit ElectionCreated(electionCount, _name, _description, _startTime, _endTime);
     }
 
     function addCandidate(uint _electionId, string memory _name, string memory _party) public onlyAdmin {
@@ -110,7 +123,7 @@ contract VotingSystem {
         candidate.party = _party;
         candidate.voteCount = 0;
 
-        emit CandidateAdded(_electionId, election.candidateCount, _name);
+        emit CandidateAdded(_electionId, election.candidateCount, _name, _party);
     }
 
     /**
@@ -125,8 +138,6 @@ contract VotingSystem {
 
         Election storage election = elections[_electionId];
         require(election.active, "Election is not active");
-       // require(block.timestamp >= election.startTime, "Election has not started yet");
-       // require(block.timestamp <= election.endTime, "Election has ended");
 
         // TC Hash ile daha önce bu seçimde oy kullanılmadığını kontrol et
         require(!tcHashVoted[_tcHash][_electionId], "This TC ID already voted in this election");
@@ -150,7 +161,10 @@ contract VotingSystem {
             voter: msg.sender
         });
 
-        emit VoteCast(voteCount, _electionId, _candidateId, _tcHash, msg.sender, block.timestamp);
+
+        string memory candidateName = election.candidates[_candidateId].name;
+
+        emit VoteCast(voteCount, _electionId, _candidateId, _tcHash, candidateName, msg.sender, block.timestamp);
     }
 
     /**
@@ -174,50 +188,6 @@ contract VotingSystem {
         Vote storage vote = votes[_voteId];
         return (vote.tcHash, vote.electionId, vote.candidateId, vote.timestamp, vote.voter);
     }
-
-    /**
-     * @dev Bir seçimin tüm oylarını getirir
-     */
-    function getElectionVotes(uint _electionId) public view returns (
-        uint[] memory voteIds,
-        string[] memory tcHashes,
-        uint[] memory candidateIds,
-        uint[] memory timestamps,
-        address[] memory voters
-    ) {
-        require(_electionId > 0 && _electionId <= electionCount, "Invalid election ID");
-
-        // Önce bu seçime ait oy sayısını say
-        uint electionVoteCount = 0;
-        for (uint i = 1; i <= voteCount; i++) {
-            if (votes[i].electionId == _electionId) {
-                electionVoteCount++;
-            }
-        }
-
-        // Dizileri oluştur
-        voteIds = new uint[](electionVoteCount);
-        tcHashes = new string[](electionVoteCount);
-        candidateIds = new uint[](electionVoteCount);
-        timestamps = new uint[](electionVoteCount);
-        voters = new address[](electionVoteCount);
-
-        // Verileri doldur
-        uint index = 0;
-        for (uint i = 1; i <= voteCount; i++) {
-            if (votes[i].electionId == _electionId) {
-                voteIds[index] = i;
-                tcHashes[index] = votes[i].tcHash;
-                candidateIds[index] = votes[i].candidateId;
-                timestamps[index] = votes[i].timestamp;
-                voters[index] = votes[i].voter;
-                index++;
-            }
-        }
-
-        return (voteIds, tcHashes, candidateIds, timestamps, voters);
-    }
-
 
     function getElection(uint _electionId) public view returns (
         uint id,
