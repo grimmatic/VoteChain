@@ -123,7 +123,7 @@ public class BlockchainManager {
             }
 
             ContractGasProvider gasProvider = new DefaultGasProvider();
-            contractAddress = "0x9588945a6185b61deb9204c59ccafd12098fdbfa";
+            contractAddress = "0x461bc8261f81b53fd02c324b1942bd9b811f9d53";
 
             Log.d(TAG, "📜 Kontrat adresi: " + contractAddress);
             Log.d(TAG, "🔑 Cüzdan adresi: " + credentials.getAddress());

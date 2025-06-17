@@ -125,8 +125,8 @@ contract VotingSystem {
 
         Election storage election = elections[_electionId];
         require(election.active, "Election is not active");
-        require(block.timestamp >= election.startTime, "Election has not started yet");
-        require(block.timestamp <= election.endTime, "Election has ended");
+       // require(block.timestamp >= election.startTime, "Election has not started yet");
+       // require(block.timestamp <= election.endTime, "Election has ended");
 
         // TC Hash ile daha önce bu seçimde oy kullanılmadığını kontrol et
         require(!tcHashVoted[_tcHash][_electionId], "This TC ID already voted in this election");

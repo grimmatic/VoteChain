@@ -220,7 +220,7 @@ public class AdminActivity extends AppCompatActivity {
                                 "🏁 Bitiş (Blockchain UTC): " + new Date(endTimeUnix * 1000) + "\n" +
                                 "🔢 Start Unix: " + startTimeUnix + "\n" +
                                 "🔢 End Unix: " + endTimeUnix + "\n" +
-                                "⛓️ Blockchain zamanına göre düzeltildi\n\n" +
+
                                 "Blockchain işlemi başlıyor...");
 
                         Election election = new Election(name, finalDescription,
@@ -287,12 +287,6 @@ public class AdminActivity extends AppCompatActivity {
         long currentTimeUnix = System.currentTimeMillis() / 1000;
         Log.d(TAG, "⏰ Current Unix: " + currentTimeUnix);
         Log.d(TAG, "⏰ Fark: " + (utcTimeUnix - currentTimeUnix) + " saniye");
-
-        if (utcTimeUnix <= currentTimeUnix) {
-            utcTimeUnix = currentTimeUnix + 3600;
-            Log.d(TAG, "🔧 Zaman gelecekte tutuldu: " + utcTimeUnix);
-            Log.d(TAG, "📅 Yeni UTC Zaman: " + new Date(utcTimeUnix * 1000));
-        }
 
         return utcTimeUnix;
     }
