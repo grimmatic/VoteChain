@@ -726,5 +726,44 @@ public class BlockchainManager {
 
         return future;
     }
+    /**
+     * Blockchain'de seçimi aktif/pasif yapar
+     */
+    public CompletableFuture<String> setElectionActive(BigInteger electionId, boolean active) {
+        CompletableFuture<String> future = new CompletableFuture<>();
+
+        try {
+            Log.d(TAG, "🔄 Blockchain'de seçim durumu değiştiriliyor:");
+            Log.d(TAG, "Election ID: " + electionId);
+            Log.d(TAG, "Active: " + active);
+
+            if (votingContract == null) {
+                Log.e(TAG, "❌ Voting contract null!");
+                future.completeExceptionally(new Exception("Voting contract başlatılamadı"));
+                return future;
+            }
+
+            votingContract.setElectionActive(electionId, active)
+                    .sendAsync()
+                    .thenAccept(receipt -> {
+                        String txHash = receipt.getTransactionHash();
+                        Log.d(TAG, "✅ Seçim durumu blockchain'de güncellendi!");
+                        Log.d(TAG, "🔗 Transaction Hash: " + txHash);
+                        Log.d(TAG, "⛽ Gas Used: " + receipt.getGasUsed());
+                        future.complete(txHash);
+                    })
+                    .exceptionally(e -> {
+                        Log.e(TAG, "❌ Blockchain seçim durumu güncelleme hatası!", e);
+                        future.completeExceptionally(e);
+                        return null;
+                    });
+
+        } catch (Exception e) {
+            Log.e(TAG, "❌ setElectionActive genel hatası", e);
+            future.completeExceptionally(e);
+        }
+
+        return future;
+    }
 
 }

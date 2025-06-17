@@ -2,6 +2,7 @@ package com.example.votechain.ui;
 
 import android.app.AlertDialog;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
@@ -14,6 +15,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.votechain.R;
+import com.example.votechain.blockchain.BlockchainElectionManager;
 import com.example.votechain.model.Election;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
@@ -172,7 +174,7 @@ public class ManageElectionsActivity extends AppCompatActivity {
                 .addOnSuccessListener(aVoid -> {
                     progressBar.setVisibility(View.GONE);
                     Toast.makeText(this, "Seçim başarıyla güncellendi", Toast.LENGTH_SHORT).show();
-                    loadElections(); // Listeyi yenile
+                    loadElections();
                 })
                 .addOnFailureListener(e -> {
                     progressBar.setVisibility(View.GONE);
@@ -212,15 +214,34 @@ public class ManageElectionsActivity extends AppCompatActivity {
         db.collection("elections").document(election.getId())
                 .update("active", newStatus)
                 .addOnSuccessListener(aVoid -> {
-                    progressBar.setVisibility(View.GONE);
-                    Toast.makeText(this,
-                            "Seçim " + statusText,
-                            Toast.LENGTH_SHORT).show();
-                    loadElections(); // Listeyi yenile
+                    Log.d("ManageElections", "Firebase'de seçim durumu güncellendi");
+
+
+                    BlockchainElectionManager electionManager = BlockchainElectionManager.getInstance();
+                    electionManager.toggleElectionStatus(election.getId(), newStatus)
+                            .thenAccept(result -> {
+                                runOnUiThread(() -> {
+                                    progressBar.setVisibility(View.GONE);
+                                    Toast.makeText(ManageElectionsActivity.this,
+                                            "Seçim " + statusText + " (Blockchain: " + result + ")",
+                                            Toast.LENGTH_LONG).show();
+                                    loadElections();
+                                });
+                            })
+                            .exceptionally(e -> {
+                                runOnUiThread(() -> {
+                                    progressBar.setVisibility(View.GONE);
+                                    Toast.makeText(ManageElectionsActivity.this,
+                                            "Seçim Firebase'de " + statusText + " ancak blockchain güncellenemedi: " + e.getMessage(),
+                                            Toast.LENGTH_LONG).show();
+                                    loadElections();
+                                });
+                                return null;
+                            });
                 })
                 .addOnFailureListener(e -> {
                     progressBar.setVisibility(View.GONE);
-                    Toast.makeText(this, "Durum değiştirilemedi: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Firebase güncelleme başarısız: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
     }
 }

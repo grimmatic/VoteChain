@@ -217,14 +217,22 @@ public class ElectionsFragment extends Fragment {
                                         " | Başlangıç: " + election.getStartDate() +
                                         " | Bitiş: " + election.getEndDate());
 
+
+                                if (!isActive) {
+                                    Log.d("ElectionsFragment", "⚠️ Seçim pasif, listeye eklenmedi: " + election.getName());
+                                    continue; // Pasif seçimleri atla
+                                }
+
+
                                 if (election.getStartDate() != null && election.getEndDate() != null) {
-                                    if (isActive || election.getEndDate().after(now)) {
+                                    if (election.getEndDate().after(now)) {
                                         electionList.add(election);
+                                    } else {
+                                        Log.d("ElectionsFragment", "⏰ Seçim süresi dolmuş: " + election.getName());
                                     }
                                 } else {
-                                    if (isActive) {
-                                        electionList.add(election);
-                                    }
+
+                                    electionList.add(election);
                                 }
                             } catch (Exception e) {
                                 Log.e("ElectionsFragment", "Seçim parse hatası", e);
@@ -243,6 +251,8 @@ public class ElectionsFragment extends Fragment {
                             tvNoElections.setVisibility(View.GONE);
                             recyclerViewElections.setVisibility(View.VISIBLE);
                         }
+
+                        Log.d("ElectionsFragment", "📊 Toplam aktif seçim sayısı: " + electionList.size());
                     } else {
                         tvNoElections.setText("Seçimler yüklenirken hata oluştu.\n" +
                                 "Lütfen internet bağlantınızı kontrol edin.");

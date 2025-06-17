@@ -347,10 +347,10 @@ public class BlockchainElectionManager {
         Log.d(TAG, "🗳️ Direkt oy verme başlıyor...");
         Log.d(TAG, "📊 Blockchain Election ID: " + blockchainElectionId);
 
-        // 🔍 ÖNEMLİ: ÖY�E oy vermeden önce seçim bilgilerini kontrol et
+
         Log.d(TAG, "🔍 OY VERME ÖNCESİ SEÇİM KONTROLÜ:");
 
-        // Blockchain'den seçim bilgilerini al ve kontrol et
+
         blockchainManager.debugElectionInfo(blockchainElectionId)
                 .thenAccept(debugInfo -> {
                     Log.d(TAG, "📊 DEBUG SONUÇLARI: " + debugInfo);
@@ -377,14 +377,14 @@ public class BlockchainElectionManager {
                             try {
                                 BigInteger blockchainCandidateId = new BigInteger(blockchainCandidateIdStr);
 
-                                // 🔍 OY VERME ÖNCESİ SON KONTROL
+
                                 Log.d(TAG, "🔍 SON KONTROL - OY VERME PARAMETRELERİ:");
                                 Log.d(TAG, "  📊 Election ID: " + blockchainElectionId);
                                 Log.d(TAG, "  👤 Candidate ID: " + blockchainCandidateId);
                                 Log.d(TAG, "  🆔 TC Kimlik: " + tcKimlikNo);
                                 Log.d(TAG, "  🕐 Şimdiki Zaman: " + (System.currentTimeMillis() / 1000));
 
-                                // Blockchain'de oy kullan
+
                                 Log.d(TAG, "🔗 Blockchain'e oy gönderiliyor...");
                                 blockchainManager.vote(blockchainElectionId, blockchainCandidateId, tcKimlikNo)
                                         .thenAccept(transactionHash -> {
@@ -400,7 +400,7 @@ public class BlockchainElectionManager {
                                             Log.e(TAG, "  🆔 TC: " + tcKimlikNo);
                                             Log.e(TAG, "  🕐 Hata Anı: " + (System.currentTimeMillis() / 1000));
 
-                                            // Hata tipini analiz et
+
                                             if (e.getMessage().contains("Election has ended")) {
                                                 Log.e(TAG, "  💡 SORUN: Seçim süresi blockchain'de dolmuş görünüyor");
                                                 Log.e(TAG, "  🔧 ÇÖZÜM: Seçim bitiş zamanını kontrol edin");
@@ -568,5 +568,66 @@ public class BlockchainElectionManager {
         }
 
         return future;
+    }
+    /**
+     * Seçimi blockchain'de aktif/pasif yapar
+     */
+    public CompletableFuture<String> toggleElectionStatus(String firebaseElectionId, boolean active) {
+        CompletableFuture<String> future = new CompletableFuture<>();
+
+        Log.d(TAG, "🔄 Seçim durumu değiştiriliyor:");
+        Log.d(TAG, "Firebase ID: " + firebaseElectionId);
+        Log.d(TAG, "Yeni durum: " + (active ? "Aktif" : "Pasif"));
+
+        // Blockchain ID'sini al
+        BigInteger blockchainElectionId = firebaseToBlockchainIds.get(firebaseElectionId);
+
+        if (blockchainElectionId == null) {
+            // Firebase'den blockchain ID'sini yükle
+            loadBlockchainIdFromFirebase(firebaseElectionId)
+                    .thenAccept(loadedBlockchainId -> {
+                        if (loadedBlockchainId != null) {
+                            firebaseToBlockchainIds.put(firebaseElectionId, loadedBlockchainId);
+                            updateBlockchainElectionStatus(loadedBlockchainId, active, future);
+                        } else {
+                            Log.w(TAG, "⚠️ Blockchain ID bulunamadı, sadece Firebase güncelleniyor");
+                            future.complete("Firebase'de güncellendi (Blockchain ID yok)");
+                        }
+                    })
+                    .exceptionally(e -> {
+                        future.completeExceptionally(e);
+                        return null;
+                    });
+        } else {
+            updateBlockchainElectionStatus(blockchainElectionId, active, future);
+        }
+
+        return future;
+    }
+
+    /**
+     * Blockchain'de seçim durumunu günceller
+     */
+    private void updateBlockchainElectionStatus(BigInteger blockchainElectionId, boolean active, CompletableFuture<String> future) {
+        try {
+            Log.d(TAG, "🔗 Blockchain'de seçim durumu güncelleniyor...");
+            Log.d(TAG, "Blockchain Election ID: " + blockchainElectionId);
+            Log.d(TAG, "Active: " + active);
+
+            blockchainManager.setElectionActive(blockchainElectionId, active)
+                    .thenAccept(transactionHash -> {
+                        Log.d(TAG, "✅ Blockchain'de seçim durumu güncellendi!");
+                        Log.d(TAG, "🔗 Transaction Hash: " + transactionHash);
+                        future.complete("Blockchain'de güncellendi: " + transactionHash);
+                    })
+                    .exceptionally(e -> {
+                        Log.e(TAG, "❌ Blockchain güncelleme hatası: " + e.getMessage());
+                        future.completeExceptionally(new Exception("Blockchain güncelleme başarısız: " + e.getMessage()));
+                        return null;
+                    });
+        } catch (Exception e) {
+            Log.e(TAG, "❌ Blockchain güncelleme exception", e);
+            future.completeExceptionally(e);
+        }
     }
 }
