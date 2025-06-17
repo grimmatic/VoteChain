@@ -374,7 +374,8 @@ public class BlockchainManager {
             }
 
             // TC Kimlik hash'i oluştur
-            String tcIdHash = Hash.sha3String(tcKimlikNo);
+            String uniqueData = tcKimlikNo + "_" + electionId.toString() + "_" + System.currentTimeMillis();
+            String tcIdHash = Hash.sha3String(uniqueData);
             Log.d(TAG, " TC Hash: " + tcIdHash);
 
             Log.d(TAG, " Kontrol ediliyor: TC Hash '" + tcIdHash + "' Election ID '" + electionId + "' için");
