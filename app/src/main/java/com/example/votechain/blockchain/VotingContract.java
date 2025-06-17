@@ -25,7 +25,7 @@ import org.web3j.tx.TransactionManager;
 import org.web3j.tx.gas.ContractGasProvider;
 
 /**
- * Web3j 5.0.0 uyumlu VotingSystem kontratı için Java wrapper sınıfı.
+ * Web3j VotingSystem kontratı için Java wrapper sınıfı.
  */
 public class VotingContract extends Contract {
 
@@ -232,7 +232,7 @@ public class VotingContract extends Contract {
         return executeRemoteCallSingleValueReturn(function, BigInteger.class);
     }
 
-    // Contract loading methods - Web3j 5.0.0 uyumlu
+    // Contract loading methods
     @Deprecated
     public static VotingContract load(String contractAddress, Web3j web3j, Credentials credentials, BigInteger gasPrice, BigInteger gasLimit) {
         return new VotingContract(contractAddress, web3j, credentials, gasPrice, gasLimit);
@@ -251,7 +251,7 @@ public class VotingContract extends Contract {
         return new VotingContract(contractAddress, web3j, transactionManager, contractGasProvider);
     }
 
-    // Deploy methods - Web3j 5.0.0 uyumlu
+    // Deploy methods
     public static RemoteCall<VotingContract> deploy(Web3j web3j, Credentials credentials, ContractGasProvider contractGasProvider) {
         return deployRemoteCall(VotingContract.class, web3j, credentials, contractGasProvider, BINARY, "");
     }
@@ -270,7 +270,7 @@ public class VotingContract extends Contract {
         return deployRemoteCall(VotingContract.class, web3j, transactionManager, gasPrice, gasLimit, BINARY, "");
     }
 
-    // Event helper methods - Web3j 5.0.0 uyumlu
+    // Event helper methods
     public List<CandidateAddedEventResponse> getCandidateAddedEvents(TransactionReceipt transactionReceipt) {
         List<Contract.EventValuesWithLog> valueList = extractEventParametersWithLog(CANDIDATEADDED_EVENT, transactionReceipt);
         ArrayList<CandidateAddedEventResponse> responses = new ArrayList<CandidateAddedEventResponse>(valueList.size());

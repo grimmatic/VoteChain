@@ -204,16 +204,6 @@ public class AdminActivity extends AppCompatActivity {
                             endTimeUnix = newEndTime;
                         }
 
-                        if (startTimeUnix <= blockchainCurrentTime) {
-                            startTimeUnix = blockchainCurrentTime + 300;
-                            Log.w(TAG, "🔧 Başlangıç zamanı da düzeltildi: " + startTimeUnix);
-                        }
-
-                        if ((endTimeUnix - startTimeUnix) < 3600) {
-                            endTimeUnix = startTimeUnix + 3600;
-                            Log.w(TAG, "🔧 Minimum seçim süresi için bitiş zamanı ayarlandı");
-                        }
-
                         updateStatus("🗳️ Seçim oluşturuluyor...\n" +
                                 "📋 Ad: " + name + "\n" +
                                 "⏰ Başlangıç (Blockchain UTC): " + new Date(startTimeUnix * 1000) + "\n" +

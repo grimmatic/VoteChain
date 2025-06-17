@@ -118,17 +118,18 @@ public class BlockchainManager {
 
             if (web3j == null) {
                 Log.e(TAG, "❌ Web3j null, kontrat başlatılamıyor");
-                // Web3j'yi yeniden başlat
+
                 web3j = Web3j.build(new HttpService(INFURA_URL));
             }
 
-            ContractGasProvider gasProvider = new DefaultGasProvider();
+            ContractGasProvider gasProvider = new DefaultGasProvider() ;
+
             contractAddress = "0x137a5aa578693b3d3abec63b9cfe87333ddafc20";
 
             Log.d(TAG, "📜 Kontrat adresi: " + contractAddress);
             Log.d(TAG, "🔑 Cüzdan adresi: " + credentials.getAddress());
 
-            // SYNC YÜKLEME DENEYİN
+
             try {
                 votingContract = VotingContract.load(
                         contractAddress,
@@ -140,7 +141,7 @@ public class BlockchainManager {
                 if (votingContract != null) {
                     Log.d(TAG, "✅ Kontrat başarıyla yüklendi: " + contractAddress);
 
-                    // Hemen test et
+
                     testContract();
                 } else {
                     Log.e(TAG, "❌ Kontrat yüklenemedi!");
